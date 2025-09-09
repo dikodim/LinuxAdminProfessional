@@ -1,0 +1,10 @@
+.vagrant
+*.vdi
+id_rsa*
+id_rsa.pub
+**/temp
+*.key
+*.cert
+*.pem
+otus-linux-adm
+.vscode
