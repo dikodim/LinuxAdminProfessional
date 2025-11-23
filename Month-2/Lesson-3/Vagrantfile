@@ -1,0 +1,15 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.define "vm-1" do |srv|
+    srv.vm.box = "bento/ubuntu-22.04"
+    srv.vm.box_version = "202510.26.0"
+    srv.vm.hostname = "srv"
+    srv.vm.provision "shell", path: "nice_test.sh"
+    srv.vm.provider "virtualbox" do |vb|
+        vb.cpus = 1
+        vb.memory = "1024"
+    end
+  end
+end
