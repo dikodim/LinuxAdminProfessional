@@ -1,0 +1,6 @@
+web:
+  hosts:
+    nginx-server1:
+      ansible_host: 130.193.70.155
+      ansible_port: 2222
+      nginx_listen_port: 8080
