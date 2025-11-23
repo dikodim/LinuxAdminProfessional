@@ -1,0 +1,21 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.define "vm-1" do |srv|
+    srv.vm.box = "bento/ubuntu-22.04"
+    srv.vm.box_version = "202510.26.0"
+    srv.vm.hostname = "srv"
+    srv.vm.network "forwarded_port", guest: 80, host: 8080
+    srv.vm.provision "shell", inline: <<-SHELL
+      uname -a 
+      free -m
+    SHELL
+    srv.vm.provision "shell", path: "setup_disks.sh"
+    srv.vm.provider "virtualbox" do |vb|
+        vb.memory = "1024"
+    end
+    srv.vm.disk :disk, size: "1GB", name: "var"
+    srv.vm.disk :disk, size: "1GB", name: "logs"
+  end
+end
