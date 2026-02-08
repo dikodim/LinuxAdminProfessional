@@ -1,0 +1,52 @@
+---
+- name: Настройка клиентов FreeIPA
+  hosts: clients
+  become: yes
+
+  tasks:
+    - name: Установить необходимые пакеты
+      dnf:
+        name:
+          - vim
+          - chrony
+          - freeipa-client
+        state: present
+        update_cache: true
+
+    - name: Отключить firewalld
+      service:
+        name: firewalld
+        state: stopped
+        enabled: false
+
+    - name: Отключить SELinux навсегда
+      selinux:
+        state: disabled
+
+    - name: Отключить SELinux немедленно
+      command: setenforce 0
+      changed_when: false
+
+    - name: Установить часовой пояс Europe/Moscow
+      timezone:
+        name: Europe/Moscow
+
+    - name: Запустить и включить chronyd
+      service:
+        name: chronyd
+        state: restarted
+        enabled: true
+
+    - name: Настроить /etc/hosts
+      template:
+        src: hosts.j2
+        dest: /etc/hosts
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Подключить хост к FreeIPA серверу
+      shell: echo -e "yes\nyes" | ipa-client-install --mkhomedir --domain=OTUS.LAN --server=ipa.otus.lan --no-ntp -p admin -w otus2022
+      args:
+        creates: /etc/ipa/default.conf
+      changed_when: true  # чтобы всегда показывало changed при первом запуске

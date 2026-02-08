@@ -1,0 +1,57 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/rocky8"
+  # Если хочешь зафиксировать версию (рекомендую, чтобы не словить сюрпризы при следующем up):
+  # config.vm.box_version = "4.3.12"   # или последнюю на момент 2026 — проверь vagrant cloud generic/rocky8
+
+  config.vm.provider :virtualbox do |v|
+    v.memory = 2048
+    v.cpus = 1
+  end
+
+  boxes = [
+    { name: "ipa.otus.lan", ip: "192.168.57.10" },
+    { name: "client1.otus.lan", ip: "192.168.57.11" },
+    { name: "client2.otus.lan", ip: "192.168.57.12" }
+  ]
+
+  boxes.each do |opts|
+    config.vm.define opts[:name] do |config|
+      config.vm.hostname = opts[:name]
+      config.vm.network "private_network", ip: opts[:ip]
+
+      if opts[:name] == "ipa.otus.lan"
+        config.vm.provision "shell", inline: <<-SHELL
+          sudo sysctl -w net.ipv6.conf.lo.disable_ipv6=0
+          echo "net.ipv6.conf.lo.disable_ipv6 = 0" | sudo tee -a /etc/sysctl.conf
+
+          sudo dnf update -y
+
+          sudo timedatectl set-timezone Europe/Moscow
+
+          sudo dnf install -y chrony
+          sudo systemctl enable --now chronyd
+
+          sudo systemctl stop firewalld
+          sudo systemctl disable firewalld
+          sudo setenforce 0
+          sudo sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
+
+          echo "192.168.57.10 ipa.otus.lan ipa" | sudo tee -a /etc/hosts
+
+          sudo dnf module enable -y idm:DL1
+          sudo dnf install -y ipa-server
+
+          sudo ipa-server-install --unattended \
+            --domain=otus.lan \
+            --realm=OTUS.LAN \
+            --ds-password=otus2022 \
+            --admin-password=otus2022 \
+            --no-ntp \
+            --mkhomedir
+
+          echo "FreeIPA server installed successfully"
+        SHELL
+      end
+    end
+  end
+end
