@@ -1,0 +1,17 @@
+---
+- name: Configure VLAN on CentOS hosts
+  hosts: testClient1,testServer1
+  become: yes
+  tasks:
+    - name: Create VLAN interface configuration
+      template:
+        src: templates/ifcfg-vlan.j2
+        dest: /etc/sysconfig/network-scripts/ifcfg-eth1.{{ vlan_id }}
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Restart network service
+      service:
+        name: NetworkManager
+        state: restarted

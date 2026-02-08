@@ -1,0 +1,12 @@
+---
+- name: Base system setup
+  import_playbook: provision.yml
+
+- name: Configure VLANs
+  import_playbook: vlan_centos.yml
+
+- name: Configure VLANs on Ubuntu
+  import_playbook: vlan_ubuntu.yml
+
+- name: Configure LACP bonding
+  import_playbook: bonding.yml

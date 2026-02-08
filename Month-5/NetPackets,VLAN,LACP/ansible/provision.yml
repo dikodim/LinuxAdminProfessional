@@ -1,0 +1,26 @@
+---
+- name: Base system setup
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install packages on CentOS
+      yum:
+        name:
+          - vim
+          - traceroute
+          - tcpdump
+          - net-tools
+        state: present
+        update_cache: true
+      when: ansible_os_family == "RedHat"
+
+    - name: Install packages on Ubuntu
+      apt:
+        name:
+          - vim
+          - traceroute
+          - tcpdump
+          - net-tools
+        state: present
+        update_cache: true
+      when: ansible_os_family == "Debian"

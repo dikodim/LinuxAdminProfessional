@@ -1,0 +1,32 @@
+---
+- name: Configure LACP bonding
+  hosts: inetRouter,centralRouter
+  become: yes
+  tasks:
+    - name: Create bond interface configuration
+      template:
+        src: templates/ifcfg-bond0.j2
+        dest: /etc/sysconfig/network-scripts/ifcfg-bond0
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Configure eth1 for bonding
+      copy:
+        src: templates/ifcfg-eth1
+        dest: /etc/sysconfig/network-scripts/ifcfg-eth1
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Configure eth2 for bonding
+      copy:
+        src: templates/ifcfg-eth2
+        dest: /etc/sysconfig/network-scripts/ifcfg-eth2
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Restart hosts to apply bonding
+      reboot:
+        reboot_timeout: 3600
