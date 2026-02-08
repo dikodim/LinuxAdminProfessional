@@ -1,0 +1,11 @@
+- name: Install required packages
+  apt:
+    name:
+      - openvpn
+      - iperf3
+      - selinux-utils
+    update_cache: yes
+
+- name: Disable SELinux
+  command: setenforce 0
+  ignore_errors: true

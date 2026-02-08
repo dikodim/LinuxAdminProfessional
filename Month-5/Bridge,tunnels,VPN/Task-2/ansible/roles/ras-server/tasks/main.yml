@@ -1,0 +1,101 @@
+---
+- name: Устанавливаем необходимые пакеты
+  apt:
+    name:
+      - openvpn
+      - easy-rsa
+    state: present
+    update_cache: yes
+
+- name: Создаем необходимые директории
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0755
+  loop:
+    - /etc/openvpn
+    - /etc/openvpn/ccd
+    - /etc/openvpn/client
+
+- name: Инициализируем PKI
+  command: /usr/share/easy-rsa/easyrsa init-pki
+  args:
+    chdir: /etc/openvpn
+    creates: /etc/openvpn/pki/private/ca.key
+  become: yes
+
+- name: Создаем CA (Certificate Authority)
+  command: /usr/share/easy-rsa/easyrsa build-ca nopass
+  args:
+    chdir: /etc/openvpn
+    stdin: "rasvpn\n"
+  become: yes
+
+- name: Генерируем запрос сертификата для сервера
+  command: /usr/share/easy-rsa/easyrsa gen-req server nopass
+  args:
+    chdir: /etc/openvpn
+    stdin: "\n"  # Пустой ввод, так как имя уже указано как "server"
+  become: yes
+
+- name: Подписываем сертификат сервера
+  command: /usr/share/easy-rsa/easyrsa sign-req server server
+  args:
+    chdir: /etc/openvpn
+    stdin: "yes\n"
+  become: yes
+
+- name: Генерируем Diffie-Hellman параметры
+  command: /usr/share/easy-rsa/easyrsa gen-dh
+  args:
+    chdir: /etc/openvpn
+  become: yes
+  async: 300  # Эта операция может занять время
+  poll: 10
+
+- name: Генерируем статический ключ TLS
+  command: openvpn --genkey secret ta.key
+  args:
+    chdir: /etc/openvpn
+    creates: /etc/openvpn/ta.key
+  become: yes
+
+- name: Генерируем запрос сертификата для клиента
+  command: /usr/share/easy-rsa/easyrsa gen-req client nopass
+  args:
+    chdir: /etc/openvpn
+    stdin: "\n"
+  become: yes
+
+- name: Подписываем сертификат клиента
+  command: /usr/share/easy-rsa/easyrsa sign-req client client
+  args:
+    chdir: /etc/openvpn
+    stdin: "yes\n"
+  become: yes
+
+- name: Копируем конфигурацию сервера
+  template:
+    src: server.conf.j2
+    dest: /etc/openvpn/server.conf
+    owner: root
+    group: root
+    mode: 0644
+  become: yes
+
+- name: Создаем файл с iroute для клиента
+  copy:
+    dest: /etc/openvpn/client/client
+    content: "iroute 10.10.10.0 255.255.255.0"
+    owner: root
+    group: root
+    mode: 0644
+  become: yes
+
+- name: Включаем и запускаем OpenVPN сервер
+  systemd:
+    name: openvpn@server
+    enabled: yes
+    state: started
+    daemon_reload: yes
+  become: yes

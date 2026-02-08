@@ -1,0 +1,31 @@
+- name: Generate static key
+  command: openvpn --genkey secret /etc/openvpn/static.key
+  args:
+    creates: /etc/openvpn/static.key
+
+- name: Copy server config
+  template:
+    src: server.conf.j2
+    dest: /etc/openvpn/server.conf
+
+- name: Create systemd unit
+  copy:
+    dest: /etc/systemd/system/openvpn@server.service
+    content: |
+      [Unit]
+      Description=OpenVPN Tunneling Application On %I
+      After=network.target
+
+      [Service]
+      Type=notify
+      PrivateTmp=true
+      ExecStart=/usr/sbin/openvpn --cd /etc/openvpn/ --config %i.conf
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Enable and start OpenVPN
+  systemd:
+    name: openvpn@server
+    enabled: yes
+    state: started

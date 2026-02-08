@@ -1,0 +1,11 @@
+- name: Install base packages
+  apt:
+    name:
+      - openvpn
+      - easy-rsa
+      - selinux-utils
+    update_cache: yes
+
+- name: Disable SELinux
+  command: setenforce 0
+  ignore_errors: true

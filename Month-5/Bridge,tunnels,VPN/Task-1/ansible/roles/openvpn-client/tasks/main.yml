@@ -1,0 +1,22 @@
+- name: Copy static key from server
+  fetch:
+    src: /etc/openvpn/static.key
+    dest: /tmp/static.key
+    flat: yes
+  delegate_to: server
+
+- name: Install static key
+  copy:
+    src: /tmp/static.key
+    dest: /etc/openvpn/static.key
+
+- name: Copy client config
+  template:
+    src: client.conf.j2
+    dest: /etc/openvpn/server.conf
+
+- name: Enable and start OpenVPN
+  systemd:
+    name: openvpn@server
+    enabled: yes
+    state: started

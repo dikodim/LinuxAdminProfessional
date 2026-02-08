@@ -1,0 +1,14 @@
+- hosts: all
+  become: true
+  roles:
+    - common
+
+- hosts: server
+  become: true
+  roles:
+    - openvpn-server
+
+- hosts: client
+  become: true
+  roles:
+    - openvpn-client
