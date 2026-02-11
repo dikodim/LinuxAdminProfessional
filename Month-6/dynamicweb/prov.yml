@@ -1,0 +1,93 @@
+---
+- hosts: DynamicWeb
+  become: yes
+  gather_facts: yes
+
+  vars:
+    docker_packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+
+  tasks:
+
+    - name: Remove old Docker repo files (only old ones)
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
+      when: "'download_docker_com_linux_ubuntu.list' in ansible_facts.files | default([])"
+
+    - name: Install dependencies
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+
+    - name: Create keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Docker GPG key (dearmor)
+      shell: |
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      args:
+        creates: /etc/apt/keyrings/docker.gpg
+
+    - name: Set permissions for Docker keyring
+      file:
+        path: /etc/apt/keyrings/docker.gpg
+        mode: '0644'
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        update_cache: yes
+
+    - name: Install Docker Engine + Compose v2
+      apt:
+        name: "{{ docker_packages }}"
+        state: present
+        update_cache: yes
+
+    - name: Ensure Docker service is running
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Add vagrant user to docker group
+      user:
+        name: vagrant
+        groups: docker
+        append: yes
+
+    - name: Copy project to vagrant home
+      copy:
+        src: project
+        dest: /home/vagrant/
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+
+    - name: Reset SSH connection
+      meta: reset_connection
+
+    - name: Run containers with Compose
+      become_user: vagrant
+      shell: docker compose up -d
+      args:
+        chdir: /home/vagrant/project
+      environment:
+        DB_NAME: mydatabase
+        DB_ROOT_PASSWORD: SuperSecretPassword
