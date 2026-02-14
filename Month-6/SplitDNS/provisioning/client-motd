@@ -1,0 +1,12 @@
+This is client2.
+
+You can run: 
+- ping web1.dns.lab
+- ping web2.dns.lab
+- ping www.newdns.lab
+
+To check DNS resolution
+
+dig @192.168.56.10 web1.dns.lab
+dig @192.168.56.10 web2.dns.lab
+dig @192.168.56.10 www.newdns.lab
