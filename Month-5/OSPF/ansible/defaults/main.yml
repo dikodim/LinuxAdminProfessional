@@ -1,0 +1,8 @@
+---
+# Включить router-id в настройку OSPF (true/false)
+router_id_enable: true
+
+# Включить симметричный роутинг (true/false)
+# При false — работает ассиметричный роутинг (дорогой интерфейс enp0s8 на router1)
+# При true — симметричный роутинг (дорогой enp0s8 и на router1, и на router2)
+symmetric_routing: false
