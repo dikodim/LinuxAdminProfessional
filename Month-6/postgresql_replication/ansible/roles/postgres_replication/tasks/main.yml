@@ -1,0 +1,108 @@
+---
+# Install python packages required for postgresql modules
+- name: Install python packages for psql modules
+  apt:
+    name:
+      - python3-pexpect
+      - python3-psycopg2
+    state: present
+    update_cache: true
+
+# Copy postgresql.conf to master FIRST (before creating users)
+- name: Copy postgresql.conf to node1
+  template:
+    src: postgresql.conf.j2
+    dest: /etc/postgresql/14/main/postgresql.conf
+    owner: postgres
+    group: postgres
+    mode: '0600'
+  when: ansible_hostname == "node1"
+
+# Copy pg_hba.conf to master
+- name: Copy pg_hba.conf to node1
+  template:
+    src: pg_hba.conf.j2
+    dest: /etc/postgresql/14/main/pg_hba.conf
+    owner: postgres
+    group: postgres
+    mode: '0640'
+  when: ansible_hostname == "node1"
+
+# Restart postgresql on master to apply config
+- name: Restart postgresql on node1
+  service:
+    name: postgresql
+    state: restarted
+  when: ansible_hostname == "node1"
+
+# Wait for PostgreSQL to be ready before creating users
+- name: Wait for postgresql to accept connections on node1
+  wait_for:
+    host: 127.0.0.1
+    port: 5432
+    delay: 3
+    timeout: 60
+  when: ansible_hostname == "node1"
+
+# CREATE USER replication WITH REPLICATION ENCRYPTED PASSWORD 'Otus2022!';
+- name: Create replication user on master
+  become_user: postgres
+  postgresql_user:
+    name: replication
+    password: "{{ replicator_password }}"
+    role_attr_flags: REPLICATION
+    login_unix_socket: /var/run/postgresql
+  ignore_errors: true
+  when: ansible_hostname == "node1"
+
+# Stop postgresql on slave before basebackup
+- name: Stop postgresql on node2
+  service:
+    name: postgresql
+    state: stopped
+  when: ansible_hostname == "node2"
+
+# Remove old data directory on slave
+- name: Remove files from data directory on node2
+  file:
+    path: /var/lib/postgresql/14/main/
+    state: absent
+  when: ansible_hostname == "node2"
+
+# Copy data from master to slave using pg_basebackup
+- name: Copy data from master to slave (pg_basebackup)
+  become_user: postgres
+  expect:
+    command: >
+      pg_basebackup -h {{ master_ip }} -U replication -p 5432
+      -D /var/lib/postgresql/14/main/ -R -P
+    responses:
+      '.*Password.*': "{{ replicator_password }}"
+  when: ansible_hostname == "node2"
+
+# Copy postgresql.conf to slave (update listen_addresses)
+- name: Copy postgresql.conf to node2
+  template:
+    src: postgresql.conf.j2
+    dest: /etc/postgresql/14/main/postgresql.conf
+    owner: postgres
+    group: postgres
+    mode: '0600'
+  when: ansible_hostname == "node2"
+
+# Copy pg_hba.conf to slave
+- name: Copy pg_hba.conf to node2
+  template:
+    src: pg_hba.conf.j2
+    dest: /etc/postgresql/14/main/pg_hba.conf
+    owner: postgres
+    group: postgres
+    mode: '0640'
+  when: ansible_hostname == "node2"
+
+# Start postgresql on slave
+- name: Start postgresql on node2
+  service:
+    name: postgresql
+    state: started
+  when: ansible_hostname == "node2"
