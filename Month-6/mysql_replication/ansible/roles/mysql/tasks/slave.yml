@@ -1,0 +1,54 @@
+---
+- name: Copy master dump to slave
+  copy:
+    src: /tmp/master.sql
+    dest: /tmp/master.sql
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Reset GTID state on slave before loading dump
+  shell: |
+    mysql -uroot -p'{{ mysql_root_password }}' -e "STOP SLAVE; RESET MASTER;"
+  changed_when: false
+
+- name: Load master dump on slave
+  shell: >
+    mysql -uroot -p'{{ mysql_root_password }}' < /tmp/master.sql
+  args:
+    creates: /var/lib/mysql/bet/bookmaker.ibd
+
+- name: Configure replication (CHANGE MASTER TO)
+  shell: |
+    mysql -uroot -p'{{ mysql_root_password }}' -e "
+      STOP SLAVE;
+      CHANGE MASTER TO
+        MASTER_HOST='{{ master_ip }}',
+        MASTER_PORT=3306,
+        MASTER_USER='{{ repl_user }}',
+        MASTER_PASSWORD='{{ repl_password }}',
+        MASTER_AUTO_POSITION=1;
+      START SLAVE;"
+  changed_when: false
+
+- name: Wait for slave IO and SQL threads to start
+  shell: |
+    mysql -uroot -p'{{ mysql_root_password }}' \
+      -e "SHOW SLAVE STATUS\G" | grep -E 'Slave_IO_Running|Slave_SQL_Running'
+  register: slave_status
+  retries: 10
+  delay: 5
+  until: >
+    'Slave_IO_Running: Yes' in slave_status.stdout and
+    'Slave_SQL_Running: Yes' in slave_status.stdout
+  changed_when: false
+
+- name: Show slave status
+  shell: >
+    mysql -uroot -p'{{ mysql_root_password }}' -e "SHOW SLAVE STATUS\G"
+  register: slave_full_status
+  changed_when: false
+
+- name: Print slave status
+  debug:
+    msg: "{{ slave_full_status.stdout_lines }}"

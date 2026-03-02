@@ -1,0 +1,13 @@
+[mysqld]
+# Unique server identifier — must differ on master and slave
+# master: server-id = 1
+# slave:  server-id = 2
+server-id = 1
+
+# Listen on all interfaces so slave can connect
+bind-address = 0.0.0.0
+
+# InnoDB settings
+innodb_file_per_table = ON
+innodb_flush_log_at_trx_commit = 1
+innodb_flush_method = O_DIRECT

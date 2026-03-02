@@ -1,0 +1,44 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/centos-7"
+
+  # ── MASTER ──────────────────────────────────────────────────────────────────
+  config.vm.define "master" do |master|
+    master.vm.hostname = "mysql-master"
+    master.vm.network "private_network", ip: "192.168.57.10"
+
+    master.vm.provider "virtualbox" do |vb|
+      vb.name   = "mysql-master"
+      vb.memory = 1024
+      vb.cpus   = 1
+    end
+
+    master.vm.provision "ansible" do |ansible|
+      ansible.playbook       = "ansible/site.yml"
+      ansible.inventory_path = "ansible/inventory"
+      ansible.limit          = "master"
+      ansible.verbose        = "v"
+    end
+  end
+
+  # ── SLAVE ───────────────────────────────────────────────────────────────────
+  config.vm.define "slave" do |slave|
+    slave.vm.hostname = "mysql-slave"
+    slave.vm.network "private_network", ip: "192.168.57.11"
+
+    slave.vm.provider "virtualbox" do |vb|
+      vb.name   = "mysql-slave"
+      vb.memory = 1024
+      vb.cpus   = 1
+    end
+
+    slave.vm.provision "ansible" do |ansible|
+      ansible.playbook       = "ansible/site.yml"
+      ansible.inventory_path = "ansible/inventory"
+      ansible.limit          = "slave"
+      ansible.verbose        = "v"
+    end
+  end
+end

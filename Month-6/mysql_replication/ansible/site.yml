@@ -1,0 +1,18 @@
+---
+- name: Install and configure MySQL on master
+  hosts: master
+  become: true
+  vars:
+    server_id: 1
+    is_slave: false
+  roles:
+    - mysql
+
+- name: Install and configure MySQL on slave
+  hosts: slave
+  become: true
+  vars:
+    server_id: 2
+    is_slave: true
+  roles:
+    - mysql

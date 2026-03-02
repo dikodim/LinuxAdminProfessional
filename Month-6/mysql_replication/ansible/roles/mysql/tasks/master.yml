@@ -1,0 +1,48 @@
+---
+- name: Copy bet.dmp to master
+  copy:
+    src: bet.dmp
+    dest: /tmp/bet.dmp
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create bet database
+  shell: >
+    mysql -uroot -p'{{ mysql_root_password }}'
+    -e "CREATE DATABASE IF NOT EXISTS bet CHARACTER SET utf8;"
+  changed_when: false
+
+- name: Load bet database dump
+  shell: >
+    mysql -uroot -p'{{ mysql_root_password }}' bet < /tmp/bet.dmp
+  args:
+    creates: /var/lib/mysql/bet/bookmaker.ibd  # idempotency guard
+
+- name: Create replication user
+  shell: |
+    mysql -uroot -p'{{ mysql_root_password }}' -e "
+      CREATE USER IF NOT EXISTS '{{ repl_user }}'@'%' IDENTIFIED BY '{{ repl_password }}';
+      GRANT REPLICATION SLAVE ON *.* TO '{{ repl_user }}'@'%' IDENTIFIED BY '{{ repl_password }}';
+      FLUSH PRIVILEGES;"
+  changed_when: false
+
+- name: Create master dump for slave (excluding ignored tables)
+  shell: >
+    mysqldump
+    --all-databases
+    --triggers
+    --routines
+    --master-data
+    --ignore-table=bet.events_on_demand
+    --ignore-table=bet.v_same_event
+    -uroot -p'{{ mysql_root_password }}'
+    > /tmp/master.sql
+  args:
+    creates: /tmp/master.sql
+
+- name: Fetch master dump to Ansible controller
+  fetch:
+    src: /tmp/master.sql
+    dest: /tmp/master.sql
+    flat: true

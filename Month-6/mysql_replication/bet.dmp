@@ -1,0 +1,136 @@
+-- MySQL dump for bet database (Percona Server 5.7 / GTID replication lab)
+-- Tables: bookmaker, competition, market, odds, outcome, events_on_demand, v_same_event
+
+SET NAMES utf8;
+SET FOREIGN_KEY_CHECKS = 0;
+
+CREATE DATABASE IF NOT EXISTS `bet` DEFAULT CHARACTER SET utf8;
+USE `bet`;
+
+-- ----------------------------
+-- Table: bookmaker
+-- ----------------------------
+DROP TABLE IF EXISTS `bookmaker`;
+CREATE TABLE `bookmaker` (
+  `id`             int(11)      NOT NULL AUTO_INCREMENT,
+  `bookmaker_name` varchar(128) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO `bookmaker` (`id`, `bookmaker_name`) VALUES
+(3, 'unibet'),
+(4, 'betway'),
+(5, 'bwin'),
+(6, 'ladbrokes');
+
+-- ----------------------------
+-- Table: competition
+-- ----------------------------
+DROP TABLE IF EXISTS `competition`;
+CREATE TABLE `competition` (
+  `id`               int(11)      NOT NULL AUTO_INCREMENT,
+  `competition_name` varchar(255) NOT NULL,
+  `bookmaker_id`     int(11)      NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_competition_bookmaker` (`bookmaker_id`),
+  CONSTRAINT `fk_competition_bookmaker`
+    FOREIGN KEY (`bookmaker_id`) REFERENCES `bookmaker` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO `competition` (`id`, `competition_name`, `bookmaker_id`) VALUES
+(1, 'English Premier League', 4),
+(2, 'UEFA Champions League',  5),
+(3, 'La Liga',                6);
+
+-- ----------------------------
+-- Table: market
+-- ----------------------------
+DROP TABLE IF EXISTS `market`;
+CREATE TABLE `market` (
+  `id`          int(11)      NOT NULL AUTO_INCREMENT,
+  `market_name` varchar(128) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO `market` (`id`, `market_name`) VALUES
+(1, 'Match Winner'),
+(2, 'Both Teams to Score'),
+(3, 'Over/Under 2.5');
+
+-- ----------------------------
+-- Table: odds
+-- ----------------------------
+DROP TABLE IF EXISTS `odds`;
+CREATE TABLE `odds` (
+  `id`             int(11)        NOT NULL AUTO_INCREMENT,
+  `competition_id` int(11)        NOT NULL,
+  `market_id`      int(11)        NOT NULL,
+  `odd_value`      decimal(10, 2) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_odds_competition` (`competition_id`),
+  KEY `fk_odds_market`      (`market_id`),
+  CONSTRAINT `fk_odds_competition`
+    FOREIGN KEY (`competition_id`) REFERENCES `competition` (`id`),
+  CONSTRAINT `fk_odds_market`
+    FOREIGN KEY (`market_id`) REFERENCES `market` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO `odds` (`id`, `competition_id`, `market_id`, `odd_value`) VALUES
+(1, 1, 1, 1.85),
+(2, 1, 2, 1.70),
+(3, 2, 1, 2.10),
+(4, 3, 3, 1.95);
+
+-- ----------------------------
+-- Table: outcome
+-- ----------------------------
+DROP TABLE IF EXISTS `outcome`;
+CREATE TABLE `outcome` (
+  `id`          int(11)      NOT NULL AUTO_INCREMENT,
+  `odds_id`     int(11)      NOT NULL,
+  `result`      varchar(64)  NOT NULL,
+  `is_winner`   tinyint(1)   NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `fk_outcome_odds` (`odds_id`),
+  CONSTRAINT `fk_outcome_odds`
+    FOREIGN KEY (`odds_id`) REFERENCES `odds` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO `outcome` (`id`, `odds_id`, `result`, `is_winner`) VALUES
+(1, 1, 'Home Win', 1),
+(2, 2, 'Yes',      0),
+(3, 3, 'Away Win', 1),
+(4, 4, 'Over',     0);
+
+-- ----------------------------
+-- Table: events_on_demand (NOT replicated)
+-- ----------------------------
+DROP TABLE IF EXISTS `events_on_demand`;
+CREATE TABLE `events_on_demand` (
+  `id`          int(11)      NOT NULL AUTO_INCREMENT,
+  `event_name`  varchar(255) NOT NULL,
+  `created_at`  datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO `events_on_demand` (`id`, `event_name`) VALUES
+(1, 'Live: Arsenal vs Chelsea'),
+(2, 'Live: Barcelona vs Real Madrid');
+
+-- ----------------------------
+-- View: v_same_event (NOT replicated — created as table for dump compatibility)
+-- ----------------------------
+DROP TABLE IF EXISTS `v_same_event`;
+CREATE TABLE `v_same_event` (
+  `competition_id`   int(11)      NOT NULL,
+  `competition_name` varchar(255) NOT NULL,
+  `bookmaker_id`     int(11)      NOT NULL,
+  `bookmaker_name`   varchar(128) NOT NULL,
+  PRIMARY KEY (`competition_id`, `bookmaker_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO `v_same_event` (`competition_id`, `competition_name`, `bookmaker_id`, `bookmaker_name`) VALUES
+(1, 'English Premier League', 4, 'betway'),
+(2, 'UEFA Champions League',  5, 'bwin');
+
+SET FOREIGN_KEY_CHECKS = 1;

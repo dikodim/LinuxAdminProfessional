@@ -1,0 +1,17 @@
+[mysqld]
+# ── Binary log ──────────────────────────────────────────────────────────────
+log_bin           = mysql-bin
+binlog_format     = ROW
+expire_logs_days  = 7
+max_binlog_size   = 128M
+log_slave_updates = ON
+
+# ── GTID ────────────────────────────────────────────────────────────────────
+gtid_mode                = ON
+enforce_gtid_consistency = ON
+
+{% if is_slave %}
+# ── Tables excluded from replication (slave only) ───────────────────────────
+replicate-ignore-table = bet.events_on_demand
+replicate-ignore-table = bet.v_same_event
+{% endif %}

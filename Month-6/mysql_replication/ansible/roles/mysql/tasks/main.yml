@@ -1,0 +1,83 @@
+---
+# CentOS 7 reached EOL 2024-06-30 — mirrorlist.centos.org is gone.
+# Redirect all base repos to vault.centos.org.
+- name: Fix CentOS 7 EOL — disable mirrorlist
+  shell: |
+    sed -i 's/^mirrorlist=/#mirrorlist=/g' /etc/yum.repos.d/CentOS-Base.repo
+  args:
+    warn: false
+  changed_when: false
+
+- name: Fix CentOS 7 EOL — set vault.centos.org baseurl
+  shell: |
+    sed -i 's|^#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' \
+      /etc/yum.repos.d/CentOS-Base.repo
+  args:
+    warn: false
+  changed_when: false
+
+- name: Download Percona repository RPM
+  get_url:
+    url: "https://repo.percona.com/yum/percona-release-latest.noarch.rpm"
+    dest: /tmp/percona-release.noarch.rpm
+    validate_certs: false
+    mode: "0644"
+
+- name: Install Percona repository
+  shell: yum localinstall -y /tmp/percona-release.noarch.rpm
+  args:
+    creates: /etc/yum.repos.d/percona-release.repo
+
+- name: Enable Percona Server 5.7 repository
+  shell: percona-release enable-only ps-57 release
+  args:
+    creates: /etc/yum.repos.d/percona-ps-57-release.repo
+
+- name: Install Percona Server 5.7
+  yum:
+    name: Percona-Server-server-57
+    state: present
+
+- name: Deploy MySQL config — 01-basics.cnf
+  template:
+    src: 01-basics.cnf.j2
+    dest: /etc/my.cnf.d/01-basics.cnf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart mysql
+
+- name: Deploy MySQL config — 05-binlog.cnf
+  template:
+    src: 05-binlog.cnf.j2
+    dest: /etc/my.cnf.d/05-binlog.cnf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart mysql
+
+- name: Start and enable MySQL service
+  service:
+    name: mysql
+    state: started
+    enabled: true
+
+- name: Fetch temporary root password from mysqld.log
+  shell: "grep 'root@localhost:' /var/log/mysqld.log | awk '{print $11}' | tail -1"
+  register: tmp_root_password
+  changed_when: false
+
+- name: Set permanent root password
+  shell: >
+    mysql -uroot -p'{{ tmp_root_password.stdout }}'
+    --connect-expired-password
+    -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ mysql_root_password }}';"
+  ignore_errors: true   # already set on re-runs ⟶ skip gracefully
+
+- name: Run master-specific tasks
+  include_tasks: master.yml
+  when: not is_slave
+
+- name: Run slave-specific tasks
+  include_tasks: slave.yml
+  when: is_slave
