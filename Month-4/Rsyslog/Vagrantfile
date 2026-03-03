@@ -1,0 +1,34 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # Base VM OS configuration
+  config.vm.box = "bento/ubuntu-22.04"
+  config.vm.box_version = "202510.26.0"
+
+  # VM provider settings
+  config.vm.provider :virtualbox do |v|
+    v.memory = 1512
+    v.cpus = 1
+  end
+
+  # Define two VMs with static private IPs
+  boxes = [
+    { name: "web1", ip: "192.168.56.10" },
+    { name: "web2", ip: "192.168.56.11" },
+    { name: "log", ip: "192.168.56.15" }
+  ]
+
+  # Provision each VM
+  boxes.each do |opts|
+    config.vm.define opts[:name] do |vm_config|
+      vm_config.vm.hostname = opts[:name]
+      vm_config.vm.network "private_network", ip: opts[:ip]
+      # Provisioning через Ansible
+      vm_config.vm.provision "ansible" do |ansible|
+        ansible.playbook = "ansible/main.yml"
+        ansible.inventory_path = "ansible/inventory.yaml"
+      end
+    end
+  end
+end

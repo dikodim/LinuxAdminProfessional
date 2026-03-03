@@ -1,0 +1,14 @@
+---
+- name: Setup Web servers with Nginx and remote logging
+  hosts: web
+  become: true
+  vars:
+    syslog_server: "192.168.56.15"
+  roles:
+    - role: nginx
+
+- name: Setup central log server
+  hosts: log
+  become: true
+  roles:
+    - role: rsyslog
