@@ -1,0 +1,50 @@
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+
+MACHINES = {
+  :backup => {
+    :box_name  => "ubuntu/focal64",
+    :vm_name   => "backup",
+    :ip        => "192.168.56.160",
+    :extra_disk => true,
+  },
+  :client => {
+    :box_name  => "ubuntu/focal64",
+    :vm_name   => "client",
+    :ip        => "192.168.56.150",
+    :extra_disk => false,
+  },
+}
+
+Vagrant.configure("2") do |config|
+
+  MACHINES.each do |boxname, boxconfig|
+
+    config.vm.define boxname do |box|
+
+      box.vm.box       = boxconfig[:box_name]
+      box.vm.host_name = boxconfig[:vm_name]
+      box.vm.network "private_network", ip: boxconfig[:ip]
+
+      box.vm.disk :disk, size: "2GB", name: "backup" if boxconfig[:extra_disk]
+
+      box.vm.provider "virtualbox" do |vb|
+        vb.memory = 1024
+        vb.cpus   = 1
+      end
+
+      if boxconfig[:vm_name] == "client"
+        box.vm.provision "ansible" do |ansible|
+          ansible.playbook         = "ansible/provision.yml"
+          ansible.host_key_checking = false
+          ansible.limit            = "all"
+          ansible.groups = {
+            "backup" => ["backup"],
+            "client" => ["client"],
+          }
+        end
+      end
+
+    end
+  end
+end

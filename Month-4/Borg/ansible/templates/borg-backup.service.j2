@@ -1,0 +1,37 @@
+[Unit]
+Description=Borg Backup
+
+[Service]
+Type=oneshot
+
+# Парольная фраза для репозитория
+Environment="BORG_PASSPHRASE={{ borg_passphrase }}"
+# Отключаем интерактивные вопросы
+Environment="BORG_RSH=ssh -o StrictHostKeyChecking=no"
+# Репозиторий
+Environment="REPO={{ backup_repo }}"
+# Что бэкапим
+Environment="BACKUP_TARGET={{ backup_target }}"
+
+# Создание бэкапа
+ExecStart=/usr/bin/borg create \
+    --stats                    \
+    --list                     \
+    ${REPO}::etc-{now:%%Y-%%m-%%d_%%H:%%M:%%S} ${BACKUP_TARGET}
+
+# Проверка репозитория
+ExecStart=/usr/bin/borg check ${REPO}
+
+# Политика удаления старых бэкапов:
+# хранить ежедневные копии за последние 90 дней (последние 3 месяца),
+# ежемесячные — за 12 месяцев, ежегодные — за 1 год
+ExecStart=/usr/bin/borg prune  \
+    --keep-daily  90           \
+    --keep-monthly 12          \
+    --keep-yearly  1           \
+    ${REPO}
+
+# Логирование через logger с тегом borg-backup
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=borg-backup

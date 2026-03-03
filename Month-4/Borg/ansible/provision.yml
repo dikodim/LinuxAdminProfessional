@@ -1,0 +1,158 @@
+---
+# --- Настройка сервера резервного копирования ---
+- name: Setup backup server
+  hosts: backup
+  become: yes
+  tasks:
+
+    - name: Install borgbackup
+      apt:
+        name: borgbackup
+        state: present
+        update_cache: yes
+
+    - name: Create borg user
+      user:
+        name: borg
+        shell: /bin/bash
+        home: /home/borg
+        create_home: yes
+
+    - name: Create .ssh directory for borg
+      file:
+        path: /home/borg/.ssh
+        state: directory
+        owner: borg
+        group: borg
+        mode: '0700'
+
+    - name: Create authorized_keys for borg
+      file:
+        path: /home/borg/.ssh/authorized_keys
+        state: touch
+        owner: borg
+        group: borg
+        mode: '0600'
+
+    - name: Check if backup disk /dev/sdc exists
+      stat:
+        path: /dev/sdc
+      register: backup_disk
+
+    - name: Create ext4 filesystem on /dev/sdc
+      filesystem:
+        fstype: ext4
+        dev: /dev/sdc
+      when: backup_disk.stat.exists
+
+    - name: Create /var/backup directory
+      file:
+        path: /var/backup
+        state: directory
+
+    - name: Mount /dev/sdc to /var/backup
+      mount:
+        path: /var/backup
+        src: /dev/sdc
+        fstype: ext4
+        state: mounted
+      when: backup_disk.stat.exists
+
+    - name: Set ownership of /var/backup to borg
+      file:
+        path: /var/backup
+        owner: borg
+        group: borg
+        mode: '0755'
+        state: directory
+
+# --- Генерация SSH-ключей на client ---
+- name: Generate SSH keys on client
+  hosts: client
+  become: yes
+  tasks:
+
+    - name: Generate SSH keypair for root
+      openssh_keypair:
+        path: /root/.ssh/id_rsa
+        type: rsa
+        size: 4096
+
+    - name: Fetch public key from client
+      fetch:
+        src: /root/.ssh/id_rsa.pub
+        dest: /tmp/borg_client_id_rsa.pub
+        flat: yes
+
+# --- Добавление ключа client на backup сервер ---
+- name: Add client SSH key to backup server
+  hosts: backup
+  become: yes
+  tasks:
+
+    - name: Authorize client public key for borg user
+      authorized_key:
+        user: borg
+        state: present
+        key: "{{ lookup('file', '/tmp/borg_client_id_rsa.pub') }}"
+
+# --- Настройка client: инициализация репозитория и systemd-таймер ---
+- name: Setup borg client
+  hosts: client
+  become: yes
+  vars:
+    borg_passphrase: "Otus1234"
+    backup_server_ip: "192.168.56.160"
+    backup_repo: "borg@192.168.56.160:/var/backup/repo"
+    backup_target: "/etc"
+  tasks:
+
+    - name: Install borgbackup
+      apt:
+        name: borgbackup
+        state: present
+        update_cache: yes
+
+    - name: Add backup server to known_hosts
+      known_hosts:
+        name: "{{ backup_server_ip }}"
+        key: "{{ lookup('pipe', 'ssh-keyscan -t rsa ' + backup_server_ip) }}"
+        state: present
+
+    - name: Initialize borg repository
+      shell: |
+        BORG_PASSPHRASE="{{ borg_passphrase }}" \
+        borg init --encryption=repokey {{ backup_repo }}
+      args:
+        creates: /root/.borg_initialized
+      register: borg_init
+      failed_when:
+        - borg_init.rc != 0
+        - "'already exists' not in borg_init.stderr"
+
+    - name: Mark borg repository as initialized
+      file:
+        path: /root/.borg_initialized
+        state: touch
+
+    - name: Deploy borg-backup systemd service
+      template:
+        src: templates/borg-backup.service.j2
+        dest: /etc/systemd/system/borg-backup.service
+        mode: '0644'
+
+    - name: Deploy borg-backup systemd timer
+      template:
+        src: templates/borg-backup.timer.j2
+        dest: /etc/systemd/system/borg-backup.timer
+        mode: '0644'
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start borg-backup timer
+      systemd:
+        name: borg-backup.timer
+        enabled: yes
+        state: started

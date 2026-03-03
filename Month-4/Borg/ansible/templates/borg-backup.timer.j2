@@ -1,0 +1,11 @@
+[Unit]
+Description=Borg Backup Timer
+
+[Timer]
+# Запускать каждые 5 минут (для демонстрации)
+OnUnitActiveSec=5min
+# Запустить при старте системы, если пропущен запуск
+OnBootSec=2min
+
+[Install]
+WantedBy=timers.target
