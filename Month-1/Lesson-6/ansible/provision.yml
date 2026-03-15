@@ -1,0 +1,203 @@
+---
+- name: Build Apache HTTPD + mod_maxminddb RPMs and create custom yum repository
+  hosts: packages
+  become: true
+
+  vars:
+    rpm_topdir: /root/rpmbuild
+    repo_dir: /usr/share/nginx/html/repo
+
+  tasks:
+
+    # ── 1. Инструменты ────────────────────────────────────────────────────
+    - name: Update dnf cache
+      ansible.builtin.dnf:
+        update_cache: true
+
+    - name: Enable CRB repository (нужен для части build deps)
+      ansible.builtin.command: dnf config-manager --set-enabled crb
+      changed_when: false
+
+    - name: Install EPEL repository
+      ansible.builtin.dnf:
+        name: epel-release
+        state: present
+
+    - name: Install build tools
+      ansible.builtin.dnf:
+        name:
+          - rpm-build
+          - rpmdevtools
+          - dnf-plugins-core
+          - yum-utils
+          - gcc
+          - gcc-c++
+          - make
+          - nginx
+          - createrepo_c
+          - libmaxminddb-devel
+        state: present
+
+    # ── 2. Сборка httpd из SRPM ───────────────────────────────────────────
+    - name: Setup rpmbuild directory tree
+      ansible.builtin.command: rpmdev-setuptree
+      args:
+        creates: "{{ rpm_topdir }}/SPECS"
+
+    - name: Download httpd SRPM
+      ansible.builtin.command: dnf download --source httpd
+      args:
+        chdir: /root
+
+    - name: Install httpd SRPM
+      ansible.builtin.shell: rpm -ivh /root/httpd-*.src.rpm
+      args:
+        creates: "{{ rpm_topdir }}/SPECS/httpd.spec"
+
+    - name: Install httpd build dependencies
+      ansible.builtin.command: dnf builddep -y "{{ rpm_topdir }}/SPECS/httpd.spec"
+
+    - name: Build httpd RPM
+      ansible.builtin.command: rpmbuild -ba httpd.spec -D 'debug_package %{nil}'
+      args:
+        chdir: "{{ rpm_topdir }}/SPECS"
+
+    # httpd-devel (содержит apxs) нужен для сборки mod_maxminddb
+    - name: Install built httpd RPMs (включая httpd-devel)
+      ansible.builtin.shell: |
+        dnf localinstall -y {{ rpm_topdir }}/RPMS/x86_64/httpd-*.rpm \
+                            {{ rpm_topdir }}/RPMS/noarch/httpd-*.rpm 2>/dev/null || true
+      args:
+        executable: /bin/bash
+
+    # ── 3. Сборка mod_maxminddb ───────────────────────────────────────────
+    - name: Download mod_maxminddb.c
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/maxmind/mod_maxminddb/main/src/mod_maxminddb.c
+        dest: "{{ rpm_topdir }}/SOURCES/mod_maxminddb.c"
+        force: true
+
+    - name: Create mod_maxminddb spec
+      ansible.builtin.copy:
+        dest: "{{ rpm_topdir }}/SPECS/mod_maxminddb.spec"
+        force: true
+        content: |
+          Name:           mod_maxminddb
+          Version:        1.2.0
+          Release:        1%{?dist}
+          Summary:        MaxMind DB Apache module for GeoIP2 lookups
+          License:        Apache-2.0
+          URL:            https://github.com/maxmind/mod_maxminddb
+          Source0:        mod_maxminddb.c
+
+          BuildRequires:  httpd-devel gcc libmaxminddb-devel
+          Requires:       httpd libmaxminddb
+
+          %description
+          mod_maxminddb is an Apache module for looking up geographic and network
+          information using MaxMind DB files (GeoIP2/GeoLite2 format).
+
+          %prep
+          cp %{SOURCE0} .
+
+          %build
+          apxs -c mod_maxminddb.c -lmaxminddb
+
+          %install
+          install -D -m 755 .libs/mod_maxminddb.so \
+              %{buildroot}%{_libdir}/httpd/modules/mod_maxminddb.so
+          install -D -m 644 /dev/null \
+              %{buildroot}%{_sysconfdir}/httpd/conf.modules.d/10-maxminddb.conf
+          echo 'LoadModule maxminddb_module modules/mod_maxminddb.so' \
+              > %{buildroot}%{_sysconfdir}/httpd/conf.modules.d/10-maxminddb.conf
+
+          %files
+          %{_libdir}/httpd/modules/mod_maxminddb.so
+          %config(noreplace) %{_sysconfdir}/httpd/conf.modules.d/10-maxminddb.conf
+
+    - name: Remove old mod_maxminddb build dir if present
+      ansible.builtin.file:
+        path: "{{ rpm_topdir }}/BUILD/mod_maxminddb-main"
+        state: absent
+
+    - name: Build mod_maxminddb RPM
+      ansible.builtin.command: rpmbuild -ba mod_maxminddb.spec -D 'debug_package %{nil}'
+      args:
+        chdir: "{{ rpm_topdir }}/SPECS"
+
+    # ── 4. Репозиторий ────────────────────────────────────────────────────
+    - name: Create repo directory
+      ansible.builtin.file:
+        path: "{{ repo_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy all built RPMs to repo
+      ansible.builtin.shell: |
+        find {{ rpm_topdir }}/RPMS -name '*.rpm' -exec cp {} {{ repo_dir }}/ \;
+      args:
+        executable: /bin/bash
+
+    - name: Initialize repository metadata
+      ansible.builtin.command: createrepo {{ repo_dir }}
+
+    # ── 5. Nginx для раздачи репозитория ──────────────────────────────────
+    - name: Write minimal nginx.conf with autoindex
+      ansible.builtin.copy:
+        dest: /etc/nginx/nginx.conf
+        content: |
+          user nginx;
+          worker_processes auto;
+          error_log /var/log/nginx/error.log;
+          pid /run/nginx.pid;
+
+          events {
+              worker_connections 1024;
+          }
+
+          http {
+              include       /etc/nginx/mime.types;
+              default_type  application/octet-stream;
+              sendfile      on;
+
+              server {
+                  listen      80;
+                  server_name _;
+                  root        /usr/share/nginx/html;
+                  autoindex   on;
+              }
+          }
+
+    - name: Enable and start nginx
+      ansible.builtin.systemd:
+        name: nginx
+        enabled: true
+        state: started
+
+    # ── 6. Подключение репозитория ────────────────────────────────────────
+    - name: Create otus repo file
+      ansible.builtin.copy:
+        dest: /etc/yum.repos.d/otus.repo
+        content: |
+          [otus]
+          name=otus-linux
+          baseurl=http://localhost/repo
+          gpgcheck=0
+          enabled=1
+
+    - name: Download percona-release into repo
+      ansible.builtin.get_url:
+        url: https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+        dest: "{{ repo_dir }}/percona-release-latest.noarch.rpm"
+
+    - name: Update repo metadata
+      ansible.builtin.command: createrepo {{ repo_dir }}
+
+    - name: Refresh dnf cache
+      ansible.builtin.command: dnf makecache
+
+    - name: Install percona-release from local repo
+      ansible.builtin.dnf:
+        name: percona-release
+        state: present
+        enablerepo: otus

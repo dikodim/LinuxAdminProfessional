@@ -1,0 +1,22 @@
+Vagrant.configure("2") do |config|
+  config.vm.define "packages" do |node|
+    node.vm.box      = "almalinux/9"  # x86_64 / amd64
+    node.vm.hostname = "packages"
+
+    node.vm.network "private_network", ip: "192.168.56.100"
+    node.vm.network "forwarded_port", guest: 80, host: 8080
+
+    node.vm.provider :virtualbox do |vb|
+      vb.cpus   = 2
+      vb.memory = 4096
+    end
+
+    node.vm.provision "ansible" do |ansible|
+      ansible.playbook         = "ansible/provision.yml"
+      ansible.host_key_checking = false
+      ansible.groups = {
+        "packages" => ["packages"]
+      }
+    end
+  end
+end
