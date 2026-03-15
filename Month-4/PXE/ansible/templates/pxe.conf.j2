@@ -1,0 +1,24 @@
+# dnsmasq PXE configuration
+# Отключаем DNS — порт 53 занят systemd-resolved на Ubuntu 22.04
+port=0
+
+interface=eth1
+bind-interfaces
+
+# DHCP range на внутренней сети pxenet
+dhcp-range=eth1,10.0.0.100,10.0.0.120,12h
+
+# Шлюз и DNS для клиентов (через NAT pxeserver выходим в интернет)
+dhcp-option=option:router,10.0.0.20
+dhcp-option=option:dns-server,8.8.8.8,8.8.4.4
+
+# Legacy BIOS boot
+dhcp-boot=pxelinux.0
+
+# UEFI boot (задание со звёздочкой)
+dhcp-match=set:efi-x86_64,option:client-arch,7
+dhcp-boot=tag:efi-x86_64,bootx64.efi
+
+# TFTP
+enable-tftp
+tftp-root=/srv/tftp/amd64
