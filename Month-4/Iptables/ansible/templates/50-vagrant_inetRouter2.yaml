@@ -1,0 +1,13 @@
+---
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enp0s8:
+      addresses:
+        # Находится в одной подсети с centralServer (192.168.0.2/28)
+        - 192.168.0.3/28
+    enp0s19:
+      addresses:
+        # Host-only сеть: хост обращается на 192.168.56.40:8080
+        - 192.168.56.40/24

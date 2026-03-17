@@ -1,0 +1,26 @@
+# iptables rules for inetRouter
+# SSH заблокирован по умолчанию — открывается через port knocking (knockd)
+*filter
+:INPUT DROP [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+-A INPUT -p icmp -j ACCEPT
+-A INPUT -i lo -j ACCEPT
+# SSH с management-сети разрешён (для Ansible)
+-A INPUT -i enp0s19 -p tcp --dport 22 -j ACCEPT
+# Порты для knocking — пакеты дропаются в iptables,
+# но knockd видит их через libpcap до netfilter
+-A INPUT -p tcp --dport 7000 -j DROP
+-A INPUT -p tcp --dport 8000 -j DROP
+-A INPUT -p tcp --dport 9000 -j DROP
+COMMIT
+
+*nat
+:PREROUTING ACCEPT [0:0]
+:INPUT ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+# NAT для выхода в интернет
+-A POSTROUTING ! -d 192.168.0.0/16 -o eth0 -j MASQUERADE
+COMMIT

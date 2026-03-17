@@ -1,0 +1,135 @@
+---
+- name: Configure all hosts
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: Install base tools
+      apt:
+        name:
+          - traceroute
+          - net-tools
+          - iptables
+        state: present
+        update_cache: yes
+
+    # IP forwarding — для всех роутеров
+    - name: Enable IP forwarding on routers
+      sysctl:
+        name: net.ipv4.conf.all.forwarding
+        value: '1'
+        state: present
+      when: "'routers' in group_names"
+
+    # Отключаем default route на NAT-интерфейсе (eth0)
+    # для всех хостов кроме inetRouter и inetRouter2 (у них свой NAT)
+    - name: Disable default route on NAT interface (eth0)
+      template:
+        src: 00-installer-config.yaml
+        dest: /etc/netplan/00-installer-config.yaml
+        owner: root
+        group: root
+        mode: '0644'
+      when: ansible_hostname not in ["inetRouter", "inetRouter2"]
+
+    # Статические маршруты через netplan
+    - name: Deploy netplan routes config
+      template:
+        src: "50-vagrant_{{ ansible_hostname }}.yaml"
+        dest: /etc/netplan/50-vagrant.yaml
+        owner: root
+        group: root
+        mode: '0644'
+
+    # iptables на inetRouter: NAT + блокировка SSH (port knocking)
+    - name: Deploy iptables rules on inetRouter
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      with_items:
+        - { src: "iptables_inetRouter.ipv4",
+            dest: "/etc/iptables_rules.ipv4",
+            mode: "0644" }
+        - { src: "iptables_restore",
+            dest: "/etc/network/if-pre-up.d/iptables",
+            mode: "0755" }
+      when: ansible_hostname == "inetRouter"
+
+    # iptables на inetRouter2: DNAT 8080 → centralServer:80
+    - name: Deploy iptables rules on inetRouter2
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      with_items:
+        - { src: "iptables_inetRouter2.ipv4",
+            dest: "/etc/iptables_rules.ipv4",
+            mode: "0644" }
+        - { src: "iptables_restore",
+            dest: "/etc/network/if-pre-up.d/iptables",
+            mode: "0755" }
+      when: ansible_hostname == "inetRouter2"
+
+    # knockd на inetRouter: демон port knocking
+    - name: Install knockd on inetRouter
+      apt:
+        name: knockd
+        state: present
+      when: ansible_hostname == "inetRouter"
+
+    - name: Deploy knockd config on inetRouter
+      template:
+        src: knockd.conf
+        dest: /etc/knockd.conf
+        owner: root
+        group: root
+        mode: '0644'
+      when: ansible_hostname == "inetRouter"
+
+    - name: Enable knockd service on inetRouter
+      lineinfile:
+        path: /etc/default/knockd
+        regexp: '^START_KNOCKD='
+        line: 'START_KNOCKD=1'
+      when: ansible_hostname == "inetRouter"
+
+    - name: Start and enable knockd on inetRouter
+      service:
+        name: knockd
+        state: started
+        enabled: yes
+      when: ansible_hostname == "inetRouter"
+
+    # Скрипт knock на centralRouter
+    - name: Deploy knock script on centralRouter
+      template:
+        src: knock_open.sh
+        dest: /usr/local/bin/knock_open.sh
+        owner: root
+        group: root
+        mode: '0755'
+      when: ansible_hostname == "centralRouter"
+
+    # nginx на centralServer
+    - name: Install nginx on centralServer
+      apt:
+        name: nginx
+        state: present
+      when: ansible_hostname == "centralServer"
+
+    - name: Start and enable nginx on centralServer
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+      when: ansible_hostname == "centralServer"
+
+    # Перезагружаем все хосты
+    - name: Reboot all hosts
+      reboot:
+        reboot_timeout: 600
