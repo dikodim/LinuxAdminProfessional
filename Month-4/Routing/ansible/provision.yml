@@ -1,0 +1,63 @@
+---
+- name: Configure all hosts
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: Install base tools
+      apt:
+        name:
+          - traceroute
+          - net-tools
+        state: present
+        update_cache: yes
+
+    # Маршрутизация транзитных пакетов — только для роутеров
+    - name: Enable IP forwarding on routers
+      sysctl:
+        name: net.ipv4.conf.all.forwarding
+        value: '1'
+        state: present
+      when: "'routers' in group_names"
+
+    # Отключаем маршрут по умолчанию на NAT-интерфейсе (eth0/enp0s3)
+    # для всех хостов кроме inetRouter
+    - name: Disable default route on NAT interface (eth0)
+      template:
+        src: 00-installer-config.yaml
+        dest: /etc/netplan/00-installer-config.yaml
+        owner: root
+        group: root
+        mode: '0644'
+      when: ansible_hostname != "inetRouter"
+
+    # Деплой netplan-конфига со статическими маршрутами для каждого сервера
+    - name: Deploy netplan routes config
+      template:
+        src: "50-vagrant_{{ ansible_hostname }}.yaml"
+        dest: /etc/netplan/50-vagrant.yaml
+        owner: root
+        group: root
+        mode: '0644'
+
+    # NAT на inetRouter
+    - name: Set up NAT on inetRouter
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      with_items:
+        - { src: "iptables_rules.ipv4",
+            dest: "/etc/iptables_rules.ipv4",
+            mode: "0644" }
+        - { src: "iptables_restore",
+            dest: "/etc/network/if-pre-up.d/iptables",
+            mode: "0755" }
+      when: ansible_hostname == "inetRouter"
+
+    # Перезагружаем все хосты для применения сетевых настроек
+    - name: Reboot all hosts
+      reboot:
+        reboot_timeout: 600
