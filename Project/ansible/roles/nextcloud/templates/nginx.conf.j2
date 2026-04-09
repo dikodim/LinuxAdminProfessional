@@ -50,9 +50,13 @@ http {
             include fastcgi_params;
             fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
             fastcgi_param PATH_INFO $fastcgi_path_info;
+            fastcgi_param HTTP_HOST $http_host;
+            fastcgi_param modHeadersAvailable true;
+            fastcgi_param front_controller_active true;
             fastcgi_param HTTPS on;
             fastcgi_pass nextcloud_fpm;
             fastcgi_read_timeout 300;
+            fastcgi_request_buffering off;
         }
 
         location ~ \.(?:css|js|woff2?|svg|gif|map)$ {

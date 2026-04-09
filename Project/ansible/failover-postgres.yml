@@ -1,0 +1,50 @@
+---
+# PostgreSQL failover:
+#   ansible-playbook -i ansible/inventory.ini ansible/failover-postgres.yml
+#   ansible-playbook -i ansible/inventory.ini ansible/failover-postgres.yml -e failover_new_primary=postgres-2
+
+- name: Promote replica to primary
+  hosts: "{{ failover_new_primary | default('postgres-2') }}"
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Check whether node is still a replica
+      shell: docker exec postgres psql -U postgres -tAc "SELECT pg_is_in_recovery();"
+      register: postgres_recovery
+      changed_when: false
+
+    - name: Promote PostgreSQL replica
+      shell: docker exec postgres psql -U postgres -c "SELECT pg_promote();"
+      when: "'t' in postgres_recovery.stdout"
+
+    - name: Wait until promoted node becomes writable
+      shell: docker exec postgres psql -U postgres -tAc "SELECT pg_is_in_recovery();"
+      register: promoted_status
+      changed_when: false
+      until: "'f' in promoted_status.stdout"
+      retries: 12
+      delay: 5
+
+- name: Reconfigure Nextcloud to use new primary
+  hosts: nextcloud
+  become: true
+  gather_facts: false
+  vars:
+    postgres_primary_host: "{{ hostvars[failover_new_primary | default('postgres-2')].ansible_host }}"
+
+  roles:
+    - role: nextcloud
+
+- name: Persist new primary in project variables
+  hosts: localhost
+  gather_facts: false
+  vars:
+    postgres_primary_host: "{{ hostvars[failover_new_primary | default('postgres-2')].ansible_host }}"
+
+  tasks:
+    - name: Update postgres_primary_host in group_vars
+      lineinfile:
+        path: "{{ playbook_dir }}/group_vars/all.yml"
+        regexp: '^postgres_primary_host:\s+'
+        line: 'postgres_primary_host: "{{ postgres_primary_host }}"'

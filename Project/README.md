@@ -116,3 +116,25 @@ bash rebuild-node.sh spare firewall
 - для `monitor` нужно перевести клиентов на новый `nfs_server` / `zabbix_server` / `rsyslog_server`
 - для `postgres-primary` нужно перенаправить приложения и реплику на новый primary
 - для `firewall` профиль уже использует `spare_dmz_ip` и `spare_internal_ip` как адреса нового шлюза
+
+## PostgreSQL Failover
+
+Для ручного failover на реплику через Ansible:
+
+```bash
+ansible-playbook -i ansible/inventory.ini ansible/failover-postgres.yml
+```
+
+Playbook:
+
+- выполняет `pg_promote()` на `postgres-2`
+- ждёт, пока `postgres-2` выйдет из recovery
+- перекатывает `nextcloud-1` и `nextcloud-2`, чтобы они ходили уже на новый primary
+- обновляет `ansible/group_vars/all.yml`, чтобы следующий `provision` не вернул старый primary
+
+Проверка после failover:
+
+```bash
+vagrant ssh postgres-2 -c "sudo docker exec postgres psql -U postgres -c 'select pg_is_in_recovery();'"
+vagrant ssh nextcloud-1 -c "sudo docker exec nextcloud bash -lc 'PGPASSWORD=nextcloudpassword psql -h 192.168.46.14 -U nextcloud -d nextcloud -p 5432 -c \"select 1;\"'"
+```
