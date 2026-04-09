@@ -161,3 +161,33 @@
     index_var: trusted_domain_index
   changed_when: false
   when: nextcloud_installed_check.rc == 0
+
+- name: Set Nextcloud canonical URL
+  shell: >
+    docker exec -u www-data nextcloud php occ
+    config:system:set overwrite.cli.url
+    --value="https://{{ nextcloud_domain }}"
+  args:
+    chdir: /opt/nextcloud
+  changed_when: false
+  when: nextcloud_installed_check.rc == 0
+
+- name: Set Nextcloud canonical host
+  shell: >
+    docker exec -u www-data nextcloud php occ
+    config:system:set overwritehost
+    --value="{{ nextcloud_domain }}"
+  args:
+    chdir: /opt/nextcloud
+  changed_when: false
+  when: nextcloud_installed_check.rc == 0
+
+- name: Allow Nextcloud local self-requests
+  shell: >
+    docker exec -u www-data nextcloud php occ
+    config:system:set allow_local_remote_servers
+    --type=boolean --value=true
+  args:
+    chdir: /opt/nextcloud
+  changed_when: false
+  when: nextcloud_installed_check.rc == 0

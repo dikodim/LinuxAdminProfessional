@@ -4,6 +4,8 @@ host    all             all             ::1/128                 scram-sha-256
 host    all             {{ zabbix_postgres_monitor_user }} 127.0.0.1/32      scram-sha-256
 host    all             {{ zabbix_postgres_monitor_user }} ::1/128           scram-sha-256
 host    all             {{ zabbix_postgres_monitor_user }} {{ internal_network }} scram-sha-256
+host    postgres        {{ postgres_user }} {{ dmz_network }}        scram-sha-256
+host    postgres        {{ postgres_user }} {{ internal_network }}   scram-sha-256
 host    {{ postgres_db }} {{ postgres_user }} {{ dmz_network }}        scram-sha-256
 host    {{ postgres_db }} {{ postgres_user }} {{ internal_network }}   scram-sha-256
 host    replication     {{ postgres_replication_user }} {{ postgres_replica_host }}/32  scram-sha-256
