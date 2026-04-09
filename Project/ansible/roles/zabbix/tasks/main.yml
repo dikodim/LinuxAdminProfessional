@@ -1,6 +1,6 @@
 ---
 - include_tasks: server.yml
-  when: zabbix_role == 'server'
+  when: zabbix_role in ['server', 'server_agent']
 
 - include_tasks: agent.yml
-  when: zabbix_role == 'agent'
+  when: zabbix_role in ['agent', 'server_agent']

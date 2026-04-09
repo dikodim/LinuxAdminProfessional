@@ -15,7 +15,7 @@
         nfs_role: server
     - role: zabbix
       vars:
-        zabbix_role: server
+        zabbix_role: server_agent
         zabbix_force_reinit: true
     - role: rsyslog
       vars:
