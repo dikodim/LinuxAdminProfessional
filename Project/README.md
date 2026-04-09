@@ -139,6 +139,23 @@ vagrant ssh postgres-2 -c "sudo docker exec postgres psql -U postgres -c 'select
 vagrant ssh nextcloud-1 -c "sudo docker exec nextcloud bash -lc 'PGPASSWORD=nextcloudpassword psql -h 192.168.46.14 -U nextcloud -d nextcloud -p 5432 -c \"select 1;\"'"
 ```
 
+## PostgreSQL Restore From Replica
+
+Если нужно восстановить `nextcloud`-базу на `postgres-1` из живой `postgres-2`, используй:
+
+```bash
+ansible-playbook -i ansible/inventory.ini ansible/restore-postgres-from-replica.yml
+```
+
+Playbook:
+
+- делает `pg_dump` на `postgres-2`
+- переносит дамп на control host
+- пересоздаёт базу `nextcloud` на `postgres-1`
+- восстанавливает туда данные из реплики
+
+Это playbook именно для восстановления приложения из живой replica. Для failover без restore используй `ansible/failover-postgres.yml`.
+
 ## PostgreSQL Monitoring In Zabbix
 
 На `postgres-1` и `postgres-2` роль автоматически:

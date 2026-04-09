@@ -1,0 +1,125 @@
+---
+- name: Prepare local restore workspace
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    postgres_restore_workspace: "{{ playbook_dir }}/.artifacts/postgres-restore"
+    postgres_restore_dump_name: "{{ postgres_db }}-from-replica.sql.gz"
+  tasks:
+    - name: Create local restore workspace
+      file:
+        path: "{{ postgres_restore_workspace }}"
+        state: directory
+        mode: '0755'
+
+    - name: Remove stale local dump
+      file:
+        path: "{{ postgres_restore_workspace }}/{{ postgres_restore_dump_name }}"
+        state: absent
+
+- name: Create PostgreSQL dump on replica
+  hosts: postgres-2
+  become: true
+  gather_facts: false
+  vars:
+    postgres_restore_remote_dump: "/tmp/{{ postgres_db }}-from-replica.sql.gz"
+  tasks:
+    - name: Ensure PostgreSQL replica is running
+      shell: docker compose up -d
+      args:
+        chdir: /opt/postgres
+      changed_when: false
+
+    - name: Wait for PostgreSQL replica port
+      wait_for:
+        host: 127.0.0.1
+        port: 5432
+        delay: 3
+        timeout: 60
+
+    - name: Create compressed dump from replica
+      shell: >
+        docker exec postgres pg_dump -U {{ postgres_user }} {{ postgres_db }} |
+        gzip -c > {{ postgres_restore_remote_dump }}
+      changed_when: false
+
+    - name: Fetch replica dump to control host
+      fetch:
+        src: "{{ postgres_restore_remote_dump }}"
+        dest: "{{ playbook_dir }}/.artifacts/postgres-restore/{{ postgres_db }}-from-replica.sql.gz"
+        flat: true
+
+- name: Restore PostgreSQL dump to primary
+  hosts: postgres-1
+  become: true
+  gather_facts: false
+  vars:
+    postgres_restore_remote_dump: "/tmp/{{ postgres_db }}-from-replica.sql.gz"
+    postgres_restore_local_dump: "{{ playbook_dir }}/.artifacts/postgres-restore/{{ postgres_db }}-from-replica.sql.gz"
+  tasks:
+    - name: Ensure PostgreSQL primary is running
+      shell: docker compose up -d
+      args:
+        chdir: /opt/postgres
+      changed_when: false
+
+    - name: Wait for PostgreSQL primary port
+      wait_for:
+        host: 127.0.0.1
+        port: 5432
+        delay: 3
+        timeout: 60
+
+    - name: Copy replica dump to primary
+      copy:
+        src: "{{ postgres_restore_local_dump }}"
+        dest: "{{ postgres_restore_remote_dump }}"
+        mode: '0600'
+
+    - name: Ensure Nextcloud database user exists on primary
+      shell: |
+        docker exec postgres psql -U postgres -c \
+        "SELECT 1 FROM pg_roles WHERE rolname='{{ postgres_user }}'" | grep -q 1 || \
+        docker exec postgres psql -U postgres -c \
+        "CREATE USER {{ postgres_user }} WITH PASSWORD '{{ postgres_password }}';"
+      changed_when: false
+
+    - name: Terminate active connections to target database
+      shell: >
+        docker exec postgres psql -U postgres -d postgres -c
+        "SELECT pg_terminate_backend(pid)
+         FROM pg_stat_activity
+         WHERE datname='{{ postgres_db }}'
+           AND pid <> pg_backend_pid();"
+      changed_when: false
+
+    - name: Recreate target database on primary
+      shell: |
+        docker exec postgres dropdb -U postgres --if-exists {{ postgres_db }}
+        docker exec postgres createdb -U postgres -O {{ postgres_user }} {{ postgres_db }}
+      changed_when: false
+
+    - name: Restore replica dump into primary database
+      shell: >
+        gunzip -c {{ postgres_restore_remote_dump }} |
+        docker exec -i postgres psql -U postgres -d {{ postgres_db }}
+      changed_when: false
+
+    - name: Remove remote dump from primary
+      file:
+        path: "{{ postgres_restore_remote_dump }}"
+        state: absent
+
+- name: Clean local restore artifacts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    postgres_restore_workspace: "{{ playbook_dir }}/.artifacts/postgres-restore"
+    postgres_restore_dump_name: "{{ postgres_db }}-from-replica.sql.gz"
+  tasks:
+    - name: Remove local dump artifact
+      file:
+        path: "{{ postgres_restore_workspace }}/{{ postgres_restore_dump_name }}"
+        state: absent
