@@ -3,6 +3,8 @@
   file:
     path: /var/lib/postgresql/data
     state: directory
+    owner: '999'
+    group: '999'
     mode: '0700'
 
 - name: Create /opt/postgres directory
@@ -14,12 +16,6 @@
   template:
     src: "docker-compose.{{ postgres_role }}.yml.j2"
     dest: /opt/postgres/docker-compose.yml
-  notify: restart postgres
-
-- name: Copy postgresql.conf
-  template:
-    src: postgresql.conf.j2
-    dest: /opt/postgres/postgresql.conf
   notify: restart postgres
 
 - name: Copy pg_hba.conf

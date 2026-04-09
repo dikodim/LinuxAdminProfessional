@@ -8,7 +8,17 @@ services:
       POSTGRES_USER: postgres
     volumes:
       - /var/lib/postgresql/data:/var/lib/postgresql/data
-      - ./postgresql.conf:/etc/postgresql/postgresql.conf
-    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    command:
+      - postgres
+      - -c
+      - listen_addresses=*
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_senders=5
+      - -c
+      - wal_keep_size=64MB
+      - -c
+      - hot_standby=on
     ports:
       - "5432:5432"
