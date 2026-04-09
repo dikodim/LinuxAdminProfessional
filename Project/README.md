@@ -44,6 +44,28 @@
 
 `spare` не включен в основной `ansible/playbook.yml`, поэтому не участвует в базовом разворачивании стенда и не влияет на рабочие узлы.
 
+## Rebuild Any Host
+
+Для полного пересоздания любой VM с нуля используй:
+
+```bash
+bash rebuild-node.sh firewall
+bash rebuild-node.sh nextcloud-1
+bash rebuild-node.sh nextcloud-2
+bash rebuild-node.sh postgres-1
+bash rebuild-node.sh postgres-2
+bash rebuild-node.sh monitor
+```
+
+Что делает скрипт:
+
+- удаляет выбранную VM через `vagrant destroy -f`
+- поднимает её заново через `vagrant up --no-provision`
+- активирует локальный `.venv`
+- накатывает только нужный хост через `ansible-playbook --limit`
+
+Для `postgres-2` скрипт автоматически добавляет `postgres_force_resync=true`, чтобы реплика могла заново синхронизироваться с primary.
+
 Поднять запасной хост:
 
 ```bash
@@ -75,6 +97,16 @@ ansible-playbook -i ansible/inventory.ini ansible/spare.yml \
   -e spare_profile=nextcloud \
   -e spare_keepalived_state=BACKUP \
   -e spare_keepalived_priority=90
+```
+
+Для полного пересоздания `spare` с нужным профилем:
+
+```bash
+bash rebuild-node.sh spare nextcloud
+bash rebuild-node.sh spare monitor
+bash rebuild-node.sh spare postgres-primary
+bash rebuild-node.sh spare postgres-replica
+bash rebuild-node.sh spare firewall
 ```
 
 Для профиля `postgres-replica` по умолчанию включен `postgres_force_resync=true`, чтобы запасная нода сразу могла синхронизироваться с primary.

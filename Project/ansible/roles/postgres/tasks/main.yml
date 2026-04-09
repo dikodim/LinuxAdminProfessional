@@ -18,6 +18,12 @@
     dest: /opt/postgres/docker-compose.yml
   notify: restart postgres
 
+- name: Remove stale pg_hba.conf directory
+  file:
+    path: /opt/postgres/pg_hba.conf
+    state: absent
+  when: postgres_role == 'primary'
+
 - name: Copy pg_hba.conf
   template:
     src: pg_hba.conf.j2
