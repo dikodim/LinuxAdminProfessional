@@ -33,3 +33,19 @@
     host: 127.0.0.1
     delay: 10
     timeout: 120
+
+- name: Update Nextcloud trusted domains
+  shell: >
+    docker exec -u www-data nextcloud php occ
+    config:system:set trusted_domains {{ trusted_domain_index }}
+    --value="{{ item }}"
+  args:
+    chdir: /opt/nextcloud
+  loop:
+    - "{{ nextcloud_vip }}"
+    - "{{ nextcloud_domain }}"
+    - "{{ nextcloud1_dmz_ip }}"
+    - "{{ nextcloud2_dmz_ip }}"
+  loop_control:
+    index_var: trusted_domain_index
+  changed_when: false
