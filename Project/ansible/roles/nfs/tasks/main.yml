@@ -47,6 +47,13 @@
     state: absent
   when: nfs_role == 'server'
 
+- name: Ensure exports.d directory exists
+  file:
+    path: /etc/exports.d
+    state: directory
+    mode: '0755'
+  when: nfs_role == 'server'
+
 - name: Configure Nextcloud exports file
   copy:
     dest: /etc/exports.d/nextcloud.exports
