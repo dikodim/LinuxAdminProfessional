@@ -22,13 +22,11 @@
   file:
     path: /opt/postgres/pg_hba.conf
     state: absent
-  when: postgres_role == 'primary'
 
 - name: Copy pg_hba.conf
   template:
     src: pg_hba.conf.j2
     dest: /opt/postgres/pg_hba.conf
-  when: postgres_role == 'primary'
   notify: restart postgres
 
 - name: Start PostgreSQL

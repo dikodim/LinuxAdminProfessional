@@ -57,6 +57,9 @@ zabbix_server:   "{{ monitor_internal_ip }}"
 zabbix_db:       "zabbix"
 zabbix_user:     "zabbix"
 zabbix_password: "zabbixpassword"
+zabbix_postgres_monitor_user:     "zbx_monitor"
+zabbix_postgres_monitor_password: "zbx_monitor_password"
+zabbix_postgres_monitor_database: "postgres"
 
 # Rsyslog
 rsyslog_server: "{{ monitor_internal_ip }}"

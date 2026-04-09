@@ -14,6 +14,13 @@
     state: present
     update_cache: true
 
+- name: Install PostgreSQL plugin for Zabbix agent2 on database hosts
+  apt:
+    name: zabbix-agent2-plugin-postgresql
+    state: present
+    update_cache: true
+  when: "'postgres' in group_names"
+
 - name: Configure Zabbix agent
   template:
     src: zabbix_agent2.conf.j2

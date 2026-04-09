@@ -8,6 +8,7 @@ services:
       POSTGRES_USER: postgres
     volumes:
       - /var/lib/postgresql/data:/var/lib/postgresql/data
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf
     command:
       - postgres
       - -c
@@ -20,5 +21,7 @@ services:
       - wal_keep_size=64MB
       - -c
       - hot_standby=on
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
     ports:
       - "5432:5432"

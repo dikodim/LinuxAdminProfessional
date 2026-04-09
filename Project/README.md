@@ -138,3 +138,23 @@ Playbook:
 vagrant ssh postgres-2 -c "sudo docker exec postgres psql -U postgres -c 'select pg_is_in_recovery();'"
 vagrant ssh nextcloud-1 -c "sudo docker exec nextcloud bash -lc 'PGPASSWORD=nextcloudpassword psql -h 192.168.46.14 -U nextcloud -d nextcloud -p 5432 -c \"select 1;\"'"
 ```
+
+## PostgreSQL Monitoring In Zabbix
+
+На `postgres-1` и `postgres-2` роль автоматически:
+
+- ставит `zabbix-agent2-plugin-postgresql`
+- создаёт пользователя БД `zbx_monitor`
+- выдаёт ему роль `pg_monitor`
+- разрешает доступ в `pg_hba.conf`
+
+Для этих хостов в Zabbix используй шаблон `PostgreSQL by Zabbix agent 2` и задай макросы:
+
+```text
+{$PG.URI}=tcp://127.0.0.1:5432
+{$PG.USER}=zbx_monitor
+{$PG.PASSWORD}=zbx_monitor_password
+{$PG.DATABASE}=postgres
+```
+
+Если у хоста уже висит старый шаблон `PostgreSQL by Zabbix agent`, его лучше снять и заменить на `PostgreSQL by Zabbix agent 2`.
