@@ -26,9 +26,6 @@
     - name: Apply firewall profile
       include_role:
         name: firewall
-      vars:
-        firewall_dmz_ip: "{{ spare_dmz_ip }}"
-        firewall_internal_ip: "{{ spare_internal_ip }}"
       when: spare_profile == 'firewall'
 
     - name: Apply monitor profile

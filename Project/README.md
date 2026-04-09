@@ -1,11 +1,8 @@
 # Infrastructure Scheme
 
-Проект поднимает стенд из двух изолированных сетей:
+Проект поднимает стенд в одной приватной сети:
 
-- `192.168.36.0/24` — DMZ для фронтенд-узлов Nextcloud
-- `192.168.46.0/24` — Internal для БД, мониторинга и служебных сервисов
-
-Роль маршрутизатора и фильтрации трафика выполняет `firewall`.
+- `192.168.46.0/24` — общая внутренняя сеть для Nextcloud, БД, мониторинга и служебных сервисов
 
 ## Scheme
 
@@ -13,32 +10,33 @@
                           Vagrant host / NAT
                                   |
                              [ firewall ]
-                     DMZ 192.168.36.1 | 192.168.46.1 Internal
-                            /                         \
-                           /                           \
-             DMZ 192.168.36.0/24               Internal 192.168.46.0/24
-              |         |         |              |          |          |
-              |         |         |              |          |          |
-      VIP 192.168.36.10 |         |      postgres-1   postgres-2   monitor
-              |         |         |      192.168.46.13 192.168.46.14 192.168.46.15
-         nextcloud-1  nextcloud-2 spare
-         192.168.36.11 192.168.36.12 DMZ: 192.168.36.16
-                                       INT: 192.168.46.16
+                          192.168.46.1
+                                  |
+             ---------------------------------------------------
+             |            |            |           |           |
+      VIP 192.168.46.10  nextcloud-1  nextcloud-2 postgres-1  postgres-2
+             |            192.168.46.11 192.168.46.12 192.168.46.13 192.168.46.14
+             |
+          monitor
+       192.168.46.15
+
+           spare
+        192.168.46.16
 ```
 
-`VIP 192.168.36.10` плавает между `nextcloud-1` и `nextcloud-2` через `keepalived`.
+`VIP 192.168.46.10` плавает между `nextcloud-1` и `nextcloud-2` через `keepalived`.
 
 ## Hosts
 
 | Host | IP | Назначение | Роли / сервисы |
 | --- | --- | --- | --- |
-| `firewall` | `192.168.36.1`, `192.168.46.1` | Маршрутизация между DMZ и Internal, фильтрация трафика | `firewall` (`nftables`, IP forwarding) |
-| `nextcloud-1` | `192.168.36.11` | Основной frontend/backend узел Nextcloud в DMZ | `docker`, `certs`, `nfs(client)`, `nextcloud`, `keepalived` MASTER, `zabbix(agent)`, `rsyslog(client)` |
-| `nextcloud-2` | `192.168.36.12` | Резервный узел Nextcloud в DMZ | `docker`, `certs`, `nfs(client)`, `nextcloud`, `keepalived` BACKUP, `zabbix(agent)`, `rsyslog(client)` |
+| `firewall` | `192.168.46.1` | Отдельный узел с локальной фильтрацией `nftables` | `firewall` (`nftables`) |
+| `nextcloud-1` | `192.168.46.11` | Основной frontend/backend узел Nextcloud | `docker`, `certs`, `nfs(client)`, `nextcloud`, `keepalived` MASTER, `zabbix(agent)`, `rsyslog(client)` |
+| `nextcloud-2` | `192.168.46.12` | Резервный узел Nextcloud | `docker`, `certs`, `nfs(client)`, `nextcloud`, `keepalived` BACKUP, `zabbix(agent)`, `rsyslog(client)` |
 | `postgres-1` | `192.168.46.13` | Primary PostgreSQL для Nextcloud | `docker`, `postgres(primary)`, `backup`, `zabbix(agent)`, `rsyslog(client)` |
 | `postgres-2` | `192.168.46.14` | Replica PostgreSQL | `docker`, `postgres(replica)`, `zabbix(agent)`, `rsyslog(client)` |
 | `monitor` | `192.168.46.15` | Центр служебных сервисов | `docker`, `nfs(server)`, `zabbix(server)`, `rsyslog(server)` |
-| `spare` | `192.168.36.16`, `192.168.46.16` | Универсальный запасной хост для быстрого разворота профиля любого существующего узла | По умолчанию без ролей, профиль разворачивается через `ansible/spare.yml` |
+| `spare` | `192.168.46.16` | Универсальный запасной хост для быстрого разворота профиля любого существующего узла | По умолчанию без ролей, профиль разворачивается через `ansible/spare.yml` |
 
 ## Spare Host
 
@@ -83,4 +81,4 @@ ansible-playbook -i ansible/inventory.ini ansible/spare.yml \
 
 - для `monitor` нужно перевести клиентов на новый `nfs_server` / `zabbix_server` / `rsyslog_server`
 - для `postgres-primary` нужно перенаправить приложения и реплику на новый primary
-- для `firewall` профиль уже использует `spare_dmz_ip` и `spare_internal_ip` как адреса нового шлюза
+- для `firewall` стоит отдельно согласовать IP-адрес запасного узла и доступ к нему со стороны остальных машин

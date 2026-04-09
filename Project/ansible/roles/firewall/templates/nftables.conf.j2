@@ -2,11 +2,6 @@
 
 flush ruleset
 
-define DMZ_IF      = {{ firewall_dmz_iface }}
-define INTERNAL_IF = {{ firewall_internal_iface }}
-define DMZ_NET     = {{ dmz_network }}
-define INT_NET     = {{ internal_network }}
-
 table inet filter {
     chain input {
         type filter hook input priority 0; policy drop;
@@ -24,38 +19,7 @@ table inet filter {
         tcp dport 22 accept
     }
 
-    chain forward {
-        type filter hook forward priority 0; policy drop;
-
-        # Established соединения — всегда разрешать
-        ct state established,related accept
-
-        # DMZ → Internal: только разрешённые порты
-        iif $DMZ_IF oif $INTERNAL_IF ct state new \
-            ip daddr . tcp dport {
-                {{ postgres1_internal_ip }} . 5432,
-                {{ postgres2_internal_ip }} . 5432,
-                {{ monitor_internal_ip }}   . 514,
-                {{ monitor_internal_ip }}   . 10051
-            } accept
-
-        # Internal → DMZ: запрещено (кроме established выше)
-        iif $INTERNAL_IF oif $DMZ_IF drop
-
-        # Zabbix agent: Internal → DMZ (monitor опрашивает nextcloud)
-        iif $INTERNAL_IF oif $DMZ_IF \
-            ip saddr {{ monitor_internal_ip }} tcp dport 10050 ct state new accept
-    }
-
     chain output {
         type filter hook output priority 0; policy accept;
-    }
-}
-
-table inet nat {
-    chain postrouting {
-        type nat hook postrouting priority 100;
-        # Masquerade для трафика из DMZ в Internal
-        oif $INTERNAL_IF masquerade
     }
 }

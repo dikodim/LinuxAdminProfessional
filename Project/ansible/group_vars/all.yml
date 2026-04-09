@@ -1,21 +1,15 @@
 ---
-# Сети
-dmz_network:      "192.168.36.0/24"
 internal_network: "192.168.46.0/24"
 
 # Firewall
-firewall_dmz_ip:      "192.168.36.1"
-firewall_internal_ip: "192.168.46.1"
-firewall_dmz_iface:      "eth1"
-firewall_internal_iface: "eth2"
+firewall_ip: "192.168.46.1"
 
-# IP адреса (DMZ)
-nextcloud1_dmz_ip: "192.168.36.11"
-nextcloud2_dmz_ip: "192.168.36.12"
-vip_address:       "192.168.36.10"
-vip_interface:     "eth1"
+# IP адреса
+nextcloud1_ip: "192.168.46.11"
+nextcloud2_ip: "192.168.46.12"
+vip_address: "192.168.46.10"
+vip_interface: "eth1"
 
-# IP адреса (Internal)
 postgres1_internal_ip: "192.168.46.13"
 postgres2_internal_ip: "192.168.46.14"
 monitor_internal_ip:   "192.168.46.15"
