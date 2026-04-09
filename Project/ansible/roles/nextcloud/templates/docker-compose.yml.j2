@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: "{{ postgres_password }}"
       NEXTCLOUD_ADMIN_USER:     "{{ nextcloud_admin_user }}"
       NEXTCLOUD_ADMIN_PASSWORD: "{{ nextcloud_admin_password }}"
-      NEXTCLOUD_TRUSTED_DOMAINS: "{{ nextcloud_vip }} {{ nextcloud_domain }}"
+      NEXTCLOUD_TRUSTED_DOMAINS: "{{ nextcloud_vip }} {{ nextcloud_domain }} {{ nextcloud1_dmz_ip }} {{ nextcloud2_dmz_ip }}"
       NEXTCLOUD_SECRET: "{{ nextcloud_secret }}"
       OVERWRITEPROTOCOL: https
     volumes:
