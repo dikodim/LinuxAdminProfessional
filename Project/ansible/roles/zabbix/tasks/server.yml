@@ -1,4 +1,18 @@
 ---
+- name: Stop Zabbix stack before forced reinitialization
+  shell: docker compose down
+  args:
+    chdir: /opt/zabbix
+  when: zabbix_force_reinit | default(false)
+  changed_when: false
+  failed_when: false
+
+- name: Remove Zabbix database directory for forced reinitialization
+  file:
+    path: /var/lib/zabbix/db
+    state: absent
+  when: zabbix_force_reinit | default(false)
+
 - name: Create zabbix directories
   file:
     path: "{{ item.path }}"

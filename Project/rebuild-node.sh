@@ -70,6 +70,10 @@ if [[ "$node" == "postgres-2" ]]; then
   extra_args+=(-e "postgres_force_resync=true")
 fi
 
+if [[ "$node" == "monitor" ]]; then
+  extra_args+=(-e "zabbix_force_reinit=true")
+fi
+
 echo "Applying playbook to: $node"
 ansible-playbook -i ansible/inventory.ini ansible/playbook.yml \
   --limit "$node" "${extra_args[@]}"

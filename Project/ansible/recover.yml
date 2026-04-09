@@ -16,6 +16,7 @@
     - role: zabbix
       vars:
         zabbix_role: server
+        zabbix_force_reinit: true
     - role: rsyslog
       vars:
         rsyslog_role: server
