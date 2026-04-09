@@ -23,7 +23,7 @@
 - name: Configure NFS exports
   lineinfile:
     path: /etc/exports
-    line: "{{ nfs_export_dir }} {{ internal_network }}(rw,sync,no_subtree_check,no_root_squash)"
+    line: "{{ nfs_export_dir }} {{ internal_network }}(rw,sync,no_subtree_check,no_root_squash) {{ dmz_network }}(rw,sync,no_subtree_check,no_root_squash)"
     create: true
   notify: restart nfs
   when: nfs_role == 'server'
