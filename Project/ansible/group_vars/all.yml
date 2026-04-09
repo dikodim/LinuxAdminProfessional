@@ -1,0 +1,67 @@
+---
+# Сети
+dmz_network:      "192.168.36.0/24"
+internal_network: "192.168.46.0/24"
+
+# Firewall
+firewall_dmz_ip:      "192.168.36.1"
+firewall_internal_ip: "192.168.46.1"
+firewall_dmz_iface:      "eth1"
+firewall_internal_iface: "eth2"
+
+# IP адреса (DMZ)
+nextcloud1_dmz_ip: "192.168.36.11"
+nextcloud2_dmz_ip: "192.168.36.12"
+vip_address:       "192.168.36.10"
+vip_interface:     "eth1"
+
+# IP адреса (Internal)
+postgres1_internal_ip: "192.168.46.13"
+postgres2_internal_ip: "192.168.46.14"
+monitor_internal_ip:   "192.168.46.15"
+
+# Keepalived
+keepalived_vip: "{{ vip_address }}"
+
+# PostgreSQL
+postgres_primary_host:         "{{ postgres1_internal_ip }}"
+postgres_replica_host:         "{{ postgres2_internal_ip }}"
+postgres_db:                   "nextcloud"
+postgres_user:                 "nextcloud"
+postgres_password:             "nextcloudpassword"
+postgres_replication_user:     "replicator"
+postgres_replication_password: "replicatorpassword"
+postgres_force_resync:         false
+
+# Nextcloud
+nextcloud_version:        "28"
+nextcloud_vip:            "{{ vip_address }}"
+nextcloud_domain:         "nextcloud.local"
+nextcloud_admin_user:     "admin"
+nextcloud_admin_password: "adminpassword"
+nextcloud_secret:         "changeme_secret_32chars_minimum!"
+
+# TLS сертификаты
+certs_dir:     "/etc/ssl/nextcloud"
+certs_days:    3650
+certs_country: "RU"
+certs_org:     "MyOrg"
+
+# NFS
+nfs_server:     "{{ monitor_internal_ip }}"
+nfs_export_dir: "/srv/nfs/nextcloud"
+
+# Zabbix
+zabbix_version:  "6.4"
+zabbix_server:   "{{ monitor_internal_ip }}"
+zabbix_db:       "zabbix"
+zabbix_user:     "zabbix"
+zabbix_password: "zabbixpassword"
+
+# Rsyslog
+rsyslog_server: "{{ monitor_internal_ip }}"
+rsyslog_port:   514
+
+# Backup
+backup_dir:       "/var/backups/postgres"
+backup_keep_days: 7

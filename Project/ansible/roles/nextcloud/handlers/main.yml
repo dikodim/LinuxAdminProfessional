@@ -1,0 +1,5 @@
+---
+- name: restart nextcloud
+  shell: docker compose down && docker compose up -d
+  args:
+    chdir: /opt/nextcloud

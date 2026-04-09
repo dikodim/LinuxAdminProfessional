@@ -1,0 +1,10 @@
+# Принимать логи по UDP и TCP
+module(load="imudp")
+input(type="imudp" port="{{ rsyslog_port }}")
+
+module(load="imtcp")
+input(type="imtcp" port="{{ rsyslog_port }}")
+
+# Сохранять логи каждого хоста в отдельный файл
+$template RemoteLogs,"/var/log/remote/%HOSTNAME%/%PROGRAMNAME%.log"
+*.* ?RemoteLogs

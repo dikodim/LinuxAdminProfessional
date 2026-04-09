@@ -1,0 +1,27 @@
+---
+- name: Add Zabbix repo
+  shell: |
+    wget -q https://repo.zabbix.com/zabbix/{{ zabbix_version }}/debian/pool/main/z/zabbix-release/zabbix-release_{{ zabbix_version }}-1+debian12_all.deb \
+      -O /tmp/zabbix-release.deb
+    dpkg -i /tmp/zabbix-release.deb
+    apt-get update -qq
+  args:
+    creates: /etc/apt/sources.list.d/zabbix.list
+
+- name: Install Zabbix agent2
+  apt:
+    name: zabbix-agent2
+    state: present
+    update_cache: true
+
+- name: Configure Zabbix agent
+  template:
+    src: zabbix_agent2.conf.j2
+    dest: /etc/zabbix/zabbix_agent2.conf
+  notify: restart zabbix-agent2
+
+- name: Enable and start Zabbix agent
+  service:
+    name: zabbix-agent2
+    state: started
+    enabled: true

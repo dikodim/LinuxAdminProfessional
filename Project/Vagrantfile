@@ -1,0 +1,43 @@
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/bookworm64"
+
+  # Сети
+  DMZ_NET      = "192.168.36"
+  INTERNAL_NET = "192.168.46"
+
+  nodes = [
+    # Firewall — три интерфейса: NAT(vagrant) + DMZ + Internal
+    { name: "firewall",    dmz: "#{DMZ_NET}.1",  internal: "#{INTERNAL_NET}.1",  memory: 512,  cpus: 1 },
+    # DMZ — только DMZ интерфейс
+    { name: "nextcloud-1", dmz: "#{DMZ_NET}.11", internal: nil,                  memory: 1536, cpus: 1 },
+    { name: "nextcloud-2", dmz: "#{DMZ_NET}.12", internal: nil,                  memory: 1536, cpus: 1 },
+    # Internal — только Internal интерфейс
+    { name: "postgres-1",  dmz: nil,             internal: "#{INTERNAL_NET}.13", memory: 1024, cpus: 1 },
+    { name: "postgres-2",  dmz: nil,             internal: "#{INTERNAL_NET}.14", memory: 1024, cpus: 1 },
+    { name: "monitor",     dmz: nil,             internal: "#{INTERNAL_NET}.15", memory: 2048, cpus: 2 },
+    # Reserve — подключен к обеим сетям, профиль накатывается отдельным playbook
+    { name: "spare",       dmz: "#{DMZ_NET}.16", internal: "#{INTERNAL_NET}.16", memory: 2048, cpus: 2 },
+  ]
+
+  nodes.each do |node|
+    config.vm.define node[:name] do |vm|
+      vm.vm.hostname = node[:name]
+      vm.vm.network "private_network", ip: node[:dmz]      if node[:dmz]
+      vm.vm.network "private_network", ip: node[:internal]  if node[:internal]
+
+      vm.vm.provider "virtualbox" do |vb|
+        vb.name   = node[:name]
+        vb.memory = node[:memory]
+        vb.cpus   = node[:cpus]
+      end
+    end
+  end
+
+  config.vm.define "monitor" do |last|
+    last.vm.provision "ansible" do |ansible|
+      ansible.playbook       = "ansible/playbook.yml"
+      ansible.inventory_path = "ansible/inventory.ini"
+      ansible.limit          = "all"
+    end
+  end
+end

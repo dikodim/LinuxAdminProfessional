@@ -1,0 +1,86 @@
+# Infrastructure Scheme
+
+Проект поднимает стенд из двух изолированных сетей:
+
+- `192.168.36.0/24` — DMZ для фронтенд-узлов Nextcloud
+- `192.168.46.0/24` — Internal для БД, мониторинга и служебных сервисов
+
+Роль маршрутизатора и фильтрации трафика выполняет `firewall`.
+
+## Scheme
+
+```text
+                          Vagrant host / NAT
+                                  |
+                             [ firewall ]
+                     DMZ 192.168.36.1 | 192.168.46.1 Internal
+                            /                         \
+                           /                           \
+             DMZ 192.168.36.0/24               Internal 192.168.46.0/24
+              |         |         |              |          |          |
+              |         |         |              |          |          |
+      VIP 192.168.36.10 |         |      postgres-1   postgres-2   monitor
+              |         |         |      192.168.46.13 192.168.46.14 192.168.46.15
+         nextcloud-1  nextcloud-2 spare
+         192.168.36.11 192.168.36.12 DMZ: 192.168.36.16
+                                       INT: 192.168.46.16
+```
+
+`VIP 192.168.36.10` плавает между `nextcloud-1` и `nextcloud-2` через `keepalived`.
+
+## Hosts
+
+| Host | IP | Назначение | Роли / сервисы |
+| --- | --- | --- | --- |
+| `firewall` | `192.168.36.1`, `192.168.46.1` | Маршрутизация между DMZ и Internal, фильтрация трафика | `firewall` (`nftables`, IP forwarding) |
+| `nextcloud-1` | `192.168.36.11` | Основной frontend/backend узел Nextcloud в DMZ | `docker`, `certs`, `nfs(client)`, `nextcloud`, `keepalived` MASTER, `zabbix(agent)`, `rsyslog(client)` |
+| `nextcloud-2` | `192.168.36.12` | Резервный узел Nextcloud в DMZ | `docker`, `certs`, `nfs(client)`, `nextcloud`, `keepalived` BACKUP, `zabbix(agent)`, `rsyslog(client)` |
+| `postgres-1` | `192.168.46.13` | Primary PostgreSQL для Nextcloud | `docker`, `postgres(primary)`, `backup`, `zabbix(agent)`, `rsyslog(client)` |
+| `postgres-2` | `192.168.46.14` | Replica PostgreSQL | `docker`, `postgres(replica)`, `zabbix(agent)`, `rsyslog(client)` |
+| `monitor` | `192.168.46.15` | Центр служебных сервисов | `docker`, `nfs(server)`, `zabbix(server)`, `rsyslog(server)` |
+| `spare` | `192.168.36.16`, `192.168.46.16` | Универсальный запасной хост для быстрого разворота профиля любого существующего узла | По умолчанию без ролей, профиль разворачивается через `ansible/spare.yml` |
+
+## Spare Host
+
+`spare` не включен в основной `ansible/playbook.yml`, поэтому не участвует в базовом разворачивании стенда и не влияет на рабочие узлы.
+
+Поднять запасной хост:
+
+```bash
+vagrant up spare
+```
+
+Накатить на него профиль существующего узла:
+
+```bash
+ansible-playbook -i ansible/inventory.ini ansible/spare.yml -e spare_profile=nextcloud
+ansible-playbook -i ansible/inventory.ini ansible/spare.yml -e spare_profile=monitor
+ansible-playbook -i ansible/inventory.ini ansible/spare.yml -e spare_profile=postgres-primary
+ansible-playbook -i ansible/inventory.ini ansible/spare.yml -e spare_profile=postgres-replica
+ansible-playbook -i ansible/inventory.ini ansible/spare.yml -e spare_profile=firewall
+```
+
+Доступные значения `spare_profile`:
+
+- `nextcloud`
+- `monitor`
+- `postgres-primary`
+- `postgres-replica`
+- `firewall`
+
+Для профиля `nextcloud` можно при необходимости переопределить VRRP-параметры:
+
+```bash
+ansible-playbook -i ansible/inventory.ini ansible/spare.yml \
+  -e spare_profile=nextcloud \
+  -e spare_keepalived_state=BACKUP \
+  -e spare_keepalived_priority=90
+```
+
+Для профиля `postgres-replica` по умолчанию включен `postgres_force_resync=true`, чтобы запасная нода сразу могла синхронизироваться с primary.
+
+Если `spare` должен не просто получить роль, а именно заменить рабочий узел в прод-схеме, то для зависимых сервисов может понадобиться дополнительное переключение:
+
+- для `monitor` нужно перевести клиентов на новый `nfs_server` / `zabbix_server` / `rsyslog_server`
+- для `postgres-primary` нужно перенаправить приложения и реплику на новый primary
+- для `firewall` профиль уже использует `spare_dmz_ip` и `spare_internal_ip` как адреса нового шлюза

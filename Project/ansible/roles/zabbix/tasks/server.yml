@@ -1,0 +1,17 @@
+---
+- name: Create zabbix directories
+  file:
+    path: /opt/zabbix
+    state: directory
+
+- name: Copy Zabbix server docker-compose
+  template:
+    src: docker-compose.server.yml.j2
+    dest: /opt/zabbix/docker-compose.yml
+  notify: restart zabbix
+
+- name: Start Zabbix server
+  shell: docker compose up -d
+  args:
+    chdir: /opt/zabbix
+  changed_when: false

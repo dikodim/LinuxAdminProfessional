@@ -1,0 +1,11 @@
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage=digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+subjectAltName=@alt_names
+
+[alt_names]
+DNS.1 = {{ nextcloud_domain }}
+DNS.2 = nextcloud.local
+IP.1  = {{ vip_address }}
+IP.2  = {{ nextcloud1_dmz_ip }}
+IP.3  = {{ nextcloud2_dmz_ip }}

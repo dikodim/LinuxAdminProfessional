@@ -1,0 +1,67 @@
+---
+# Восстановление упавшей ноды
+# Примеры:
+#   ansible-playbook recover.yml --limit nextcloud-1
+#   ansible-playbook recover.yml --limit postgres-2
+#   ansible-playbook recover.yml --limit monitor
+
+- name: Recover Monitor
+  hosts: monitor
+  become: true
+  roles:
+    - role: docker
+    - role: nfs
+      vars:
+        nfs_role: server
+    - role: zabbix
+      vars:
+        zabbix_role: server
+    - role: rsyslog
+      vars:
+        rsyslog_role: server
+
+- name: Recover PostgreSQL Primary
+  hosts: postgres-1
+  become: true
+  roles:
+    - role: docker
+    - role: postgres
+    - role: backup
+    - role: zabbix
+      vars:
+        zabbix_role: agent
+    - role: rsyslog
+      vars:
+        rsyslog_role: client
+
+- name: Recover PostgreSQL Replica
+  hosts: postgres-2
+  become: true
+  roles:
+    - role: docker
+    - role: postgres
+      vars:
+        postgres_force_resync: true
+    - role: zabbix
+      vars:
+        zabbix_role: agent
+    - role: rsyslog
+      vars:
+        rsyslog_role: client
+
+- name: Recover Nextcloud node
+  hosts: nextcloud
+  become: true
+  roles:
+    - role: docker
+    - role: nfs
+      vars:
+        nfs_role: client
+    - role: nextcloud
+    - role: keepalived
+    - role: zabbix
+      vars:
+        zabbix_role: agent
+    - role: rsyslog
+      vars:
+        rsyslog_role: client

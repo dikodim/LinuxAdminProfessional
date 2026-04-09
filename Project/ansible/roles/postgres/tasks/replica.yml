@@ -1,0 +1,37 @@
+---
+- name: Stop postgres container for resync
+  shell: docker compose down
+  args:
+    chdir: /opt/postgres
+  when: postgres_force_resync
+
+- name: Clear data directory
+  file:
+    path: /var/lib/postgresql/data
+    state: absent
+  when: postgres_force_resync
+
+- name: Recreate data directory
+  file:
+    path: /var/lib/postgresql/data
+    state: directory
+    mode: '0700'
+  when: postgres_force_resync
+
+- name: Run pg_basebackup from primary
+  shell: |
+    docker run --rm \
+      -e PGPASSWORD="{{ postgres_replication_password }}" \
+      -v /var/lib/postgresql/data:/var/lib/postgresql/data \
+      postgres:15 \
+      pg_basebackup -h {{ postgres_primary_host }} \
+        -U {{ postgres_replication_user }} \
+        -D /var/lib/postgresql/data \
+        -Xs -P -R
+  when: postgres_force_resync
+
+- name: Start replica
+  shell: docker compose up -d
+  args:
+    chdir: /opt/postgres
+  changed_when: false

@@ -1,0 +1,35 @@
+---
+- name: Create nextcloud directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /opt/nextcloud
+    - /var/lib/nextcloud/config
+    - /var/lib/nextcloud/apps
+
+- name: Copy docker-compose
+  template:
+    src: docker-compose.yml.j2
+    dest: /opt/nextcloud/docker-compose.yml
+  notify: restart nextcloud
+
+- name: Copy nginx config
+  template:
+    src: nginx.conf.j2
+    dest: /opt/nextcloud/nginx.conf
+  notify: restart nextcloud
+
+- name: Start Nextcloud
+  shell: docker compose up -d
+  args:
+    chdir: /opt/nextcloud
+  changed_when: false
+
+- name: Wait for Nextcloud to be ready
+  wait_for:
+    port: 9000
+    host: 127.0.0.1
+    delay: 10
+    timeout: 120

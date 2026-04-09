@@ -1,0 +1,5 @@
+---
+- name: restart postgres
+  shell: docker compose down && docker compose up -d
+  args:
+    chdir: /opt/postgres

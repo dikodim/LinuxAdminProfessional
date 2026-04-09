@@ -1,0 +1,36 @@
+---
+- name: Create postgres data directory
+  file:
+    path: /var/lib/postgresql/data
+    state: directory
+    mode: '0700'
+
+- name: Copy docker-compose for PostgreSQL
+  template:
+    src: "docker-compose.{{ postgres_role }}.yml.j2"
+    dest: /opt/postgres/docker-compose.yml
+  notify: restart postgres
+
+- name: Create /opt/postgres directory
+  file:
+    path: /opt/postgres
+    state: directory
+
+- name: Start PostgreSQL
+  shell: docker compose up -d
+  args:
+    chdir: /opt/postgres
+  changed_when: false
+
+- name: Wait for PostgreSQL to be ready
+  wait_for:
+    port: 5432
+    host: 127.0.0.1
+    delay: 5
+    timeout: 60
+
+- include_tasks: primary.yml
+  when: postgres_role == 'primary'
+
+- include_tasks: replica.yml
+  when: postgres_role == 'replica'

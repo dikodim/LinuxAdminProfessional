@@ -1,0 +1,6 @@
+---
+- include_tasks: server.yml
+  when: zabbix_role == 'server'
+
+- include_tasks: agent.yml
+  when: zabbix_role == 'agent'

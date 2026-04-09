@@ -1,0 +1,132 @@
+---
+- name: Apply profile to spare host
+  hosts: spare
+  become: true
+  vars:
+    spare_profile: none
+    spare_postgres_force_resync: true
+
+  pre_tasks:
+    - name: Validate spare profile
+      assert:
+        that:
+          - spare_profile in ['none', 'firewall', 'monitor', 'postgres-primary', 'postgres-replica', 'nextcloud']
+        fail_msg: >-
+          Unsupported spare_profile='{{ spare_profile }}'.
+          Supported values: firewall, monitor, postgres-primary, postgres-replica, nextcloud, none.
+
+    - name: Show spare usage hint
+      debug:
+        msg: >-
+          Pass -e spare_profile=<firewall|monitor|postgres-primary|postgres-replica|nextcloud>
+          to configure {{ inventory_hostname }}.
+      when: spare_profile == 'none'
+
+  tasks:
+    - name: Apply firewall profile
+      include_role:
+        name: firewall
+      vars:
+        firewall_dmz_ip: "{{ spare_dmz_ip }}"
+        firewall_internal_ip: "{{ spare_internal_ip }}"
+      when: spare_profile == 'firewall'
+
+    - name: Apply monitor profile
+      block:
+        - include_role:
+            name: docker
+
+        - include_role:
+            name: nfs
+          vars:
+            nfs_role: server
+
+        - include_role:
+            name: zabbix
+          vars:
+            zabbix_role: server
+
+        - include_role:
+            name: rsyslog
+          vars:
+            rsyslog_role: server
+      when: spare_profile == 'monitor'
+
+    - name: Apply PostgreSQL primary profile
+      block:
+        - include_role:
+            name: docker
+
+        - include_role:
+            name: postgres
+          vars:
+            postgres_role: primary
+
+        - include_role:
+            name: backup
+
+        - include_role:
+            name: zabbix
+          vars:
+            zabbix_role: agent
+
+        - include_role:
+            name: rsyslog
+          vars:
+            rsyslog_role: client
+      when: spare_profile == 'postgres-primary'
+
+    - name: Apply PostgreSQL replica profile
+      block:
+        - include_role:
+            name: docker
+
+        - include_role:
+            name: postgres
+          vars:
+            postgres_role: replica
+            postgres_force_resync: "{{ spare_postgres_force_resync }}"
+
+        - include_role:
+            name: zabbix
+          vars:
+            zabbix_role: agent
+
+        - include_role:
+            name: rsyslog
+          vars:
+            rsyslog_role: client
+      when: spare_profile == 'postgres-replica'
+
+    - name: Apply Nextcloud profile
+      block:
+        - include_role:
+            name: docker
+
+        - include_role:
+            name: certs
+
+        - include_role:
+            name: nfs
+          vars:
+            nfs_role: client
+
+        - include_role:
+            name: nextcloud
+
+        - include_role:
+            name: keepalived
+          vars:
+            keepalived_state: "{{ spare_keepalived_state | default('BACKUP') }}"
+            keepalived_priority: "{{ spare_keepalived_priority | default(90) }}"
+
+        - include_role:
+            name: zabbix
+          vars:
+            zabbix_role: agent
+
+        - include_role:
+            name: rsyslog
+          vars:
+            rsyslog_role: client
+      when: spare_profile == 'nextcloud'

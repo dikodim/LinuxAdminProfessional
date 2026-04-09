@@ -1,0 +1,10 @@
+---
+- name: restart zabbix
+  shell: docker compose down && docker compose up -d
+  args:
+    chdir: /opt/zabbix
+
+- name: restart zabbix-agent2
+  service:
+    name: zabbix-agent2
+    state: restarted

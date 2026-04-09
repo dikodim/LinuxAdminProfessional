@@ -1,0 +1,23 @@
+---
+- name: Create nextcloud database and user
+  shell: |
+    docker exec postgres psql -U postgres -c \
+    "SELECT 1 FROM pg_roles WHERE rolname='{{ postgres_user }}'" | grep -q 1 || \
+    docker exec postgres psql -U postgres -c \
+    "CREATE USER {{ postgres_user }} WITH PASSWORD '{{ postgres_password }}';"
+
+    docker exec postgres psql -U postgres -c \
+    "SELECT 1 FROM pg_database WHERE datname='{{ postgres_db }}'" | grep -q 1 || \
+    docker exec postgres psql -U postgres -c \
+    "CREATE DATABASE {{ postgres_db }} OWNER {{ postgres_user }};"
+  args:
+    chdir: /opt/postgres
+  changed_when: false
+
+- name: Create replication user
+  shell: |
+    docker exec postgres psql -U postgres -c \
+    "SELECT 1 FROM pg_roles WHERE rolname='{{ postgres_replication_user }}'" | grep -q 1 || \
+    docker exec postgres psql -U postgres -c \
+    "CREATE USER {{ postgres_replication_user }} WITH REPLICATION PASSWORD '{{ postgres_replication_password }}';"
+  changed_when: false

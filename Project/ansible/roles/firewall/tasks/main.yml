@@ -1,0 +1,49 @@
+---
+- name: Enable IP forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true
+
+- name: Install nftables
+  apt:
+    name: nftables
+    state: present
+    update_cache: true
+
+- name: Copy nftables ruleset
+  template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+  notify: reload nftables
+
+- name: Enable and start nftables
+  service:
+    name: nftables
+    state: started
+    enabled: true
+
+# Маршруты на nextcloud нодах — через firewall в Internal
+- name: Add route to Internal network on nextcloud nodes
+  command: >
+    ip route replace {{ internal_network }}
+    via {{ firewall_dmz_ip }}
+  delegate_to: "{{ item }}"
+  loop:
+    - nextcloud-1
+    - nextcloud-2
+  changed_when: false
+
+# Маршруты на internal нодах — через firewall в DMZ
+- name: Add route to DMZ network on internal nodes
+  command: >
+    ip route replace {{ dmz_network }}
+    via {{ firewall_internal_ip }}
+  delegate_to: "{{ item }}"
+  loop:
+    - postgres-1
+    - postgres-2
+    - monitor
+  changed_when: false
