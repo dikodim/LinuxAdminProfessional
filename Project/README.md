@@ -1,86 +1,62 @@
-# Infrastructure Scheme
+# Terraform vCD / NSX-V Edge Lab
 
-Проект поднимает стенд из двух изолированных сетей:
+Новая ветка для переписывания `Project` под стек:
 
-- `192.168.36.0/24` — DMZ для фронтенд-узлов Nextcloud
-- `192.168.46.0/24` — Internal для БД, мониторинга и служебных сервисов
+- `Terraform` как основной инструмент описания инфраструктуры
+- `VMware Cloud Director (vCD)` как целевая платформа
+- `NSX-V Edge` для реализации DMZ, routed-сетей, NAT и north-south трафика
+- `Prometheus + Grafana` вместо Zabbix
+- отдельный backup-узел вместо старого backup-роля внутри PostgreSQL
 
-Роль маршрутизатора и фильтрации трафика выполняет `firewall`.
+## Целевая схема
 
-## Scheme
+- `NSX-V Edge` публикует frontend Nextcloud в DMZ-сегмент
+- `Nextcloud` размещается в DMZ как application tier
+- `PostgreSQL primary/replica` размещается во внутреннем сегменте
+- `Prometheus`, `Grafana` и exporters размещаются во внутреннем сегменте
+- `Backup` размещается во внутреннем сегменте и собирает бэкапы PostgreSQL и служебных данных
+
+## Что меняется по сравнению со старым стендом
+
+- Больше не считаем `Vagrant` и VirtualBox основной платформой
+- DMZ реализуется на уровне `NSX-V`, а не отдельной VM `firewall`
+- Мониторинг строится вокруг `Prometheus`, `Grafana`, `node_exporter`, `postgres_exporter`, `blackbox_exporter`
+- Бэкапы выделяются в отдельный контур
+
+## Структура
 
 ```text
-                          Vagrant host / NAT
-                                  |
-                             [ firewall ]
-                     DMZ 192.168.36.1 | 192.168.46.1 Internal
-                            /                         \
-                           /                           \
-             DMZ 192.168.36.0/24               Internal 192.168.46.0/24
-              |         |         |              |          |          |
-              |         |         |              |          |          |
-      VIP 192.168.36.10 |         |      postgres-1   postgres-2   monitor
-              |         |         |      192.168.46.13 192.168.46.14 192.168.46.15
-         nextcloud-1  nextcloud-2 spare
-         192.168.36.11 192.168.36.12 DMZ: 192.168.36.16
-                                       INT: 192.168.46.16
+Project/
+├── terraform/
+│   ├── main.tf
+│   ├── providers.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   ├── terraform.tfvars.example
+│   └── modules/
+│       ├── nsxv_edge/
+│       ├── nextcloud_cluster/
+│       ├── postgres_cluster/
+│       ├── monitoring_stack/
+│       └── backup_stack/
+└── ansible/
 ```
 
-`VIP 192.168.36.10` плавает между `nextcloud-1` и `nextcloud-2` через `keepalived`.
+## Первый этап
 
-## Hosts
+Сейчас в ветке заложен именно новый каркас:
 
-| Host | IP | Назначение | Роли / сервисы |
-| --- | --- | --- | --- |
-| `firewall` | `192.168.36.1`, `192.168.46.1` | Маршрутизация между DMZ и Internal, фильтрация трафика | `firewall` (`nftables`, IP forwarding) |
-| `nextcloud-1` | `192.168.36.11` | Основной frontend/backend узел Nextcloud в DMZ | `docker`, `certs`, `nfs(client)`, `nextcloud`, `keepalived` MASTER, `zabbix(agent)`, `rsyslog(client)` |
-| `nextcloud-2` | `192.168.36.12` | Резервный узел Nextcloud в DMZ | `docker`, `certs`, `nfs(client)`, `nextcloud`, `keepalived` BACKUP, `zabbix(agent)`, `rsyslog(client)` |
-| `postgres-1` | `192.168.46.13` | Primary PostgreSQL для Nextcloud | `docker`, `postgres(primary)`, `backup`, `zabbix(agent)`, `rsyslog(client)` |
-| `postgres-2` | `192.168.46.14` | Replica PostgreSQL | `docker`, `postgres(replica)`, `zabbix(agent)`, `rsyslog(client)` |
-| `monitor` | `192.168.46.15` | Центр служебных сервисов | `docker`, `nfs(server)`, `zabbix(server)`, `rsyslog(server)` |
-| `spare` | `192.168.36.16`, `192.168.46.16` | Универсальный запасной хост для быстрого разворота профиля любого существующего узла | По умолчанию без ролей, профиль разворачивается через `ansible/spare.yml` |
+- провайдер и переменные для `vcd`
+- модульная декомпозиция под `NSX-V edge`, `Nextcloud`, `PostgreSQL`, `monitoring`, `backup`
+- пример `terraform.tfvars`
 
-## Spare Host
+Следующий шаг после этого каркаса:
 
-`spare` не включен в основной `ansible/playbook.yml`, поэтому не участвует в базовом разворачивании стенда и не влияет на рабочие узлы.
+1. описать `vcd` provider и naming conventions под твой tenant
+2. реализовать routed-сети и edge gateway
+3. вынести VM-группы в отдельные модули
+4. определить, что оставляем в `Ansible`, а что полностью описываем через cloud-init/user-data
 
-Поднять запасной хост:
+## Примечание
 
-```bash
-vagrant up spare
-```
-
-Накатить на него профиль существующего узла:
-
-```bash
-ansible-playbook -i ansible/inventory.ini ansible/spare.yml -e spare_profile=nextcloud
-ansible-playbook -i ansible/inventory.ini ansible/spare.yml -e spare_profile=monitor
-ansible-playbook -i ansible/inventory.ini ansible/spare.yml -e spare_profile=postgres-primary
-ansible-playbook -i ansible/inventory.ini ansible/spare.yml -e spare_profile=postgres-replica
-ansible-playbook -i ansible/inventory.ini ansible/spare.yml -e spare_profile=firewall
-```
-
-Доступные значения `spare_profile`:
-
-- `nextcloud`
-- `monitor`
-- `postgres-primary`
-- `postgres-replica`
-- `firewall`
-
-Для профиля `nextcloud` можно при необходимости переопределить VRRP-параметры:
-
-```bash
-ansible-playbook -i ansible/inventory.ini ansible/spare.yml \
-  -e spare_profile=nextcloud \
-  -e spare_keepalived_state=BACKUP \
-  -e spare_keepalived_priority=90
-```
-
-Для профиля `postgres-replica` по умолчанию включен `postgres_force_resync=true`, чтобы запасная нода сразу могла синхронизироваться с primary.
-
-Если `spare` должен не просто получить роль, а именно заменить рабочий узел в прод-схеме, то для зависимых сервисов может понадобиться дополнительное переключение:
-
-- для `monitor` нужно перевести клиентов на новый `nfs_server` / `zabbix_server` / `rsyslog_server`
-- для `postgres-primary` нужно перенаправить приложения и реплику на новый primary
-- для `firewall` профиль уже использует `spare_dmz_ip` и `spare_internal_ip` как адреса нового шлюза
+Старые `Vagrant`/legacy-файлы пока физически ещё лежат в репозитории как база, от которой мы отделились. Дальше развиваем именно `terraform`-направление на этой ветке.
