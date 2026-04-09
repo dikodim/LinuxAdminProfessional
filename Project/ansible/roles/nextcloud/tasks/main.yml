@@ -25,6 +25,21 @@
     group: '33'
     mode: '0640'
 
+- name: Ensure Nextcloud data directory contents belong to www-data
+  file:
+    path: /mnt/nextcloud
+    owner: '33'
+    group: '33'
+    recurse: true
+
+- name: Ensure Nextcloud log file exists and is writable
+  file:
+    path: /mnt/nextcloud/nextcloud.log
+    state: touch
+    owner: '33'
+    group: '33'
+    mode: '0660'
+
 - name: Copy docker-compose
   template:
     src: docker-compose.yml.j2
