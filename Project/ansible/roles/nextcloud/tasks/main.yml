@@ -48,11 +48,21 @@
     dest: /opt/nextcloud/nginx.conf
   notify: restart nextcloud
 
-- name: Start Nextcloud
-  shell: docker compose up -d
-  args:
-    chdir: /opt/nextcloud
-  changed_when: false
+- name: Install Nextcloud systemd unit
+  template:
+    src: nextcloud-stack.service.j2
+    dest: /etc/systemd/system/nextcloud-stack.service
+    mode: '0644'
+  notify:
+    - reload systemd
+    - restart nextcloud
+
+- name: Enable and start Nextcloud stack
+  systemd:
+    name: nextcloud-stack
+    enabled: true
+    state: started
+    daemon_reload: true
 
 - name: Wait for Nextcloud to be ready
   wait_for:

@@ -80,7 +80,7 @@
     path: /mnt/nextcloud
     src: "{{ nfs_server }}:{{ nfs_export_dir }}"
     fstype: nfs
-    opts: rw,hard,_netdev,nofail,x-systemd.automount
+    opts: rw,sync,hard,_netdev,nofail
     state: mounted
   when: nfs_role == 'client'
 

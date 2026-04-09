@@ -1,5 +1,9 @@
 ---
+- name: reload systemd
+  systemd:
+    daemon_reload: true
+
 - name: restart nextcloud
-  shell: docker compose down && docker compose up -d
-  args:
-    chdir: /opt/nextcloud
+  systemd:
+    name: nextcloud-stack
+    state: restarted

@@ -2,7 +2,7 @@ services:
   nextcloud:
     image: nextcloud:{{ nextcloud_version }}-fpm
     container_name: nextcloud
-    restart: always
+    restart: "no"
     environment:
       POSTGRES_HOST:     "{{ postgres_primary_host }}"
       POSTGRES_DB:       "{{ postgres_db }}"
@@ -24,7 +24,7 @@ services:
   nginx:
     image: nginx:alpine
     container_name: nextcloud-nginx
-    restart: always
+    restart: "no"
     ports:
       - "80:80"
       - "443:443"
