@@ -4,15 +4,15 @@ environment  = "lab"
 vcd = {
   user                 = "terraform@system"
   password             = "change-me"
-  org                  = "my-org"
-  vdc                  = "my-vdc"
-  url                  = "https://vcd.example.local/api"
+  org                  = "B2B-service-kubernetes-group"
+  vdc                  = "b2b-k8s-test-kube-version2_vc4"
+  url                  = "https://dcloud.ru/api"
   max_retry_timeout    = 60
   allow_unverified_ssl = true
 }
 
 nsxv_edge = {
-  edge_gateway_name    = "edge-nextcloud-lab"
+  edge_gateway_name    = "b2b-k8s-test-kube-version2_vc4-egde"
   external_network     = "uplink-network"
   dmz_network_name     = "dmz-nextcloud"
   dmz_subnet_cidr      = "172.16.10.0/24"

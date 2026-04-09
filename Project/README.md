@@ -57,6 +57,18 @@ Project/
 3. вынести VM-группы в отдельные модули
 4. определить, что оставляем в `Ansible`, а что полностью описываем через cloud-init/user-data
 
+## Текущие исходные данные
+
+- tenant portal: [B2B-service-kubernetes-group](https://dcloud.ru/tenant/B2B-service-kubernetes-group)
+- vDC / datacenter: `b2b-k8s-test-kube-version2_vc4`
+- NSX-V Edge: `b2b-k8s-test-kube-version2_vc4-egde`
+
+Для `Terraform vcd provider` в примере используется API endpoint того же хоста:
+
+- `https://dcloud.ru/api`
+
+`org` в примере ниже выведен из tenant path как `B2B-service-kubernetes-group`.
+
 ## Примечание
 
 Старые `Vagrant`/legacy-файлы пока физически ещё лежат в репозитории как база, от которой мы отделились. Дальше развиваем именно `terraform`-направление на этой ветке.
