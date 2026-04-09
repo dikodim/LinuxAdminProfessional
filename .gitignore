@@ -8,3 +8,5 @@ id_rsa.pub
 *.pem
 otus-linux-adm
 .vscode
+nfs_migration_plans
+.DS_Store
