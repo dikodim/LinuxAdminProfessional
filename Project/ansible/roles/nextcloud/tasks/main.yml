@@ -9,13 +9,9 @@
     - /var/lib/nextcloud/config
     - /var/lib/nextcloud/apps
 
-- name: Ensure Nextcloud data directory exists on mounted storage
-  file:
-    path: /mnt/nextcloud
-    state: directory
-    owner: '33'
-    group: '33'
-    mode: '0770'
+- name: Verify Nextcloud data directory is an NFS mount
+  command: mountpoint -q /mnt/nextcloud
+  changed_when: false
 
 - name: Ensure Nextcloud data directory marker exists
   file:
@@ -25,12 +21,12 @@
     group: '33'
     mode: '0640'
 
-- name: Ensure Nextcloud data directory contents belong to www-data
+- name: Ensure Nextcloud data directory permissions are correct
   file:
     path: /mnt/nextcloud
     owner: '33'
     group: '33'
-    recurse: true
+    mode: '0770'
 
 - name: Ensure Nextcloud log file exists and is writable
   file:
@@ -69,11 +65,8 @@
   shell: >
     docker exec -u 0 nextcloud sh -c
     'mkdir -p /var/www/html/data &&
-     touch /var/www/html/data/.ocdata /var/www/html/data/nextcloud.log &&
-     chown -R www-data:www-data /var/www/html/data &&
-     chmod 0770 /var/www/html/data &&
-     chmod 0640 /var/www/html/data/.ocdata &&
-     chmod 0660 /var/www/html/data/nextcloud.log'
+     [ -f /var/www/html/data/.ocdata ] || touch /var/www/html/data/.ocdata &&
+     [ -f /var/www/html/data/nextcloud.log ] || touch /var/www/html/data/nextcloud.log'
   args:
     chdir: /opt/nextcloud
   changed_when: false

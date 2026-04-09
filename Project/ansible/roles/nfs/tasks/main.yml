@@ -17,14 +17,41 @@
   file:
     path: "{{ nfs_export_dir }}"
     state: directory
-    mode: '0777'
+    owner: '33'
+    group: '33'
+    mode: '0770'
   when: nfs_role == 'server'
 
-- name: Configure NFS exports
+- name: Ensure Nextcloud data marker exists on NFS server
+  file:
+    path: "{{ nfs_export_dir }}/.ocdata"
+    state: touch
+    owner: '33'
+    group: '33'
+    mode: '0640'
+  when: nfs_role == 'server'
+
+- name: Ensure Nextcloud log file exists on NFS server
+  file:
+    path: "{{ nfs_export_dir }}/nextcloud.log"
+    state: touch
+    owner: '33'
+    group: '33'
+    mode: '0660'
+  when: nfs_role == 'server'
+
+- name: Remove legacy inline Nextcloud export entry
   lineinfile:
     path: /etc/exports
-    line: "{{ nfs_export_dir }} {{ internal_network }}(rw,sync,no_subtree_check,no_root_squash) {{ dmz_network }}(rw,sync,no_subtree_check,no_root_squash)"
-    create: true
+    regexp: "^{{ nfs_export_dir | regex_escape() }}\\s+{{ internal_network | regex_escape() }}\\(rw,sync,no_subtree_check,no_root_squash\\)\\s+{{ dmz_network | regex_escape() }}\\(rw,sync,no_subtree_check,no_root_squash\\)$"
+    state: absent
+  when: nfs_role == 'server'
+
+- name: Configure Nextcloud exports file
+  copy:
+    dest: /etc/exports.d/nextcloud.exports
+    content: "{{ nfs_export_dir }} {{ internal_network }}(rw,sync,no_subtree_check,no_root_squash) {{ dmz_network }}(rw,sync,no_subtree_check,no_root_squash)\n"
+    mode: '0644'
   notify: restart nfs
   when: nfs_role == 'server'
 
@@ -41,11 +68,23 @@
     state: directory
   when: nfs_role == 'client'
 
+- name: Wait for NFS server port
+  wait_for:
+    host: "{{ nfs_server }}"
+    port: 2049
+    timeout: 60
+  when: nfs_role == 'client'
+
 - name: Mount NFS share
   mount:
     path: /mnt/nextcloud
     src: "{{ nfs_server }}:{{ nfs_export_dir }}"
     fstype: nfs
-    opts: rw,sync,hard
+    opts: rw,hard,_netdev,nofail,x-systemd.automount
     state: mounted
   when: nfs_role == 'client'
+
+- name: Verify NFS share is mounted
+  command: mountpoint -q /mnt/nextcloud
+  when: nfs_role == 'client'
+  changed_when: false
