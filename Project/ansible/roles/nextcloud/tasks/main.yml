@@ -65,6 +65,33 @@
     delay: 10
     timeout: 120
 
+- name: Fix Nextcloud data directory permissions from inside container
+  shell: >
+    docker exec -u 0 nextcloud sh -c
+    'mkdir -p /var/www/html/data &&
+     touch /var/www/html/data/.ocdata /var/www/html/data/nextcloud.log &&
+     chown -R www-data:www-data /var/www/html/data &&
+     chmod 0770 /var/www/html/data &&
+     chmod 0640 /var/www/html/data/.ocdata &&
+     chmod 0660 /var/www/html/data/nextcloud.log'
+  args:
+    chdir: /opt/nextcloud
+  changed_when: false
+
+- name: Verify Nextcloud data directory is writable for www-data
+  shell: >
+    docker exec -u www-data nextcloud sh -c
+    'test -w /var/www/html/data &&
+     touch /var/www/html/data/.ansible_write_test &&
+     rm -f /var/www/html/data/.ansible_write_test'
+  args:
+    chdir: /opt/nextcloud
+  register: nextcloud_data_writable
+  retries: 5
+  delay: 3
+  until: nextcloud_data_writable.rc == 0
+  changed_when: false
+
 - name: Update Nextcloud trusted domains
   shell: >
     docker exec -u www-data nextcloud php occ
