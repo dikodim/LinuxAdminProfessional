@@ -17,6 +17,7 @@
       vars:
         zabbix_role: server_agent
         zabbix_force_reinit: true
+        zabbix_agent_servers: "{{ zabbix_server }},127.0.0.1,172.16.0.0/12"
     - role: rsyslog
       vars:
         rsyslog_role: server
