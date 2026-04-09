@@ -62,6 +62,9 @@ Project/
 - tenant portal: [B2B-service-kubernetes-group](https://dcloud.ru/tenant/B2B-service-kubernetes-group)
 - vDC / datacenter: `b2b-k8s-test-kube-version2_vc4`
 - NSX-V Edge: `b2b-k8s-test-kube-version2_vc4-egde`
+- external network: `SM-internet-2820`
+- VM template: `Ubuntu-22_04_16G`
+- app/template version reference: `vcd-ch-app-ver:1.0.0:oX2M3`
 
 Для `Terraform vcd provider` в примере используется API endpoint того же хоста:
 

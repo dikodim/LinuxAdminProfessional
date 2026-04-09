@@ -1,6 +1,9 @@
 project_name = "nextcloud-nsxv-lab"
 environment  = "lab"
 
+# Source application/template version reference:
+# vcd-ch-app-ver:1.0.0:oX2M3
+
 vcd = {
   user                 = "terraform@system"
   password             = "change-me"
@@ -13,7 +16,7 @@ vcd = {
 
 nsxv_edge = {
   edge_gateway_name    = "b2b-k8s-test-kube-version2_vc4-egde"
-  external_network     = "uplink-network"
+  external_network     = "SM-internet-2820"
   dmz_network_name     = "dmz-nextcloud"
   dmz_subnet_cidr      = "172.16.10.0/24"
   dmz_gateway_ip       = "172.16.10.1"
@@ -25,7 +28,7 @@ nsxv_edge = {
 nextcloud_cluster = {
   cluster_name  = "nextcloud"
   node_count    = 2
-  template_name = "debian-12-template"
+  template_name = "Ubuntu-22_04_16G"
   vm_cpu        = 2
   vm_memory_mb  = 4096
   dmz_ips       = ["172.16.10.11", "172.16.10.12"]
@@ -33,7 +36,7 @@ nextcloud_cluster = {
 
 postgres_cluster = {
   cluster_name  = "postgres"
-  template_name = "debian-12-template"
+  template_name = "Ubuntu-22_04_16G"
   vm_cpu        = 2
   vm_memory_mb  = 4096
   primary_ip    = "172.16.20.13"
