@@ -17,6 +17,8 @@ services:
       - /mnt/nextcloud:/var/www/html/data
       - /var/lib/nextcloud/config:/var/www/html/config
       - /var/lib/nextcloud/apps:/var/www/html/custom_apps
+    ports:
+      - "127.0.0.1:9000:9000"
 
   nginx:
     image: nginx:alpine
