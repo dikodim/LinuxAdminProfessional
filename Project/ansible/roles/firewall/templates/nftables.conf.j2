@@ -30,6 +30,12 @@ table inet filter {
         # Established соединения — всегда разрешать
         ct state established,related accept
 
+        # ICMP между DMZ и Internal запрещаем явно
+        iif $DMZ_IF oif $INTERNAL_IF ip protocol icmp reject
+        iif $INTERNAL_IF oif $DMZ_IF ip protocol icmp reject
+        iif $DMZ_IF oif $INTERNAL_IF ip6 nexthdr ipv6-icmp reject
+        iif $INTERNAL_IF oif $DMZ_IF ip6 nexthdr ipv6-icmp reject
+
         # DMZ → Internal: только разрешённые порты
         iif $DMZ_IF oif $INTERNAL_IF ct state new \
             ip daddr . tcp dport {
