@@ -35,9 +35,35 @@ Vagrant.configure("2") do |config|
 
   config.vm.define "monitor" do |last|
     last.vm.provision "ansible" do |ansible|
-      ansible.playbook       = "ansible/playbook.yml"
-      ansible.inventory_path = "ansible/inventory.ini"
-      ansible.limit          = "all"
+      ansible.playbook = "ansible/playbook.yml"
+      ansible.limit = "all"
+      ansible.host_key_checking = "false"
+      ansible.compatibility_mode = "2.0"
+      ansible.groups = {
+        "nextcloud" => ["nextcloud-1", "nextcloud-2"]
+      }
+      ansible.host_vars = {
+        "nextcloud-1" => {
+          "keepalived_state" => "MASTER",
+          "keepalived_priority" => 110
+        },
+        "nextcloud-2" => {
+          "keepalived_state" => "BACKUP",
+          "keepalived_priority" => 100
+        },
+        "postgres-1" => {
+          "postgres_role" => "primary"
+        },
+        "postgres-2" => {
+          "postgres_role" => "replica"
+        },
+        "spare" => {
+          "spare_dmz_ip" => "#{DMZ_NET}.16",
+          "spare_internal_ip" => "#{INTERNAL_NET}.16",
+          "spare_keepalived_state" => "BACKUP",
+          "spare_keepalived_priority" => 90
+        }
+      }
     end
   end
 end
