@@ -92,6 +92,52 @@
   until: nextcloud_data_writable.rc == 0
   changed_when: false
 
+- name: Check whether Nextcloud is installed on nextcloud-1
+  shell: >
+    grep -q "'installed' => true" /var/lib/nextcloud/config/config.php
+  delegate_to: nextcloud-1
+  run_once: true
+  register: nextcloud1_installed_check
+  failed_when: false
+  changed_when: false
+
+- name: Check whether Nextcloud is installed on nextcloud-2
+  shell: >
+    grep -q "'installed' => true" /var/lib/nextcloud/config/config.php
+  delegate_to: nextcloud-2
+  run_once: true
+  register: nextcloud2_installed_check
+  failed_when: false
+  changed_when: false
+
+- name: Read Nextcloud config from nextcloud-1
+  slurp:
+    src: /var/lib/nextcloud/config/config.php
+  delegate_to: nextcloud-1
+  run_once: true
+  register: nextcloud_config_source
+  when: nextcloud1_installed_check.rc == 0
+
+- name: Read Nextcloud config from nextcloud-2
+  slurp:
+    src: /var/lib/nextcloud/config/config.php
+  delegate_to: nextcloud-2
+  run_once: true
+  register: nextcloud_config_source
+  when:
+    - nextcloud1_installed_check.rc != 0
+    - nextcloud2_installed_check.rc == 0
+
+- name: Synchronize Nextcloud config.php from installed node
+  copy:
+    content: "{{ nextcloud_config_source.content | b64decode }}"
+    dest: /var/lib/nextcloud/config/config.php
+    owner: '33'
+    group: '33'
+    mode: '0640'
+  when: nextcloud_config_source is defined and nextcloud_config_source.content is defined
+  notify: restart nextcloud
+
 - name: Check whether Nextcloud is already installed
   shell: >
     grep -q "'installed' => true" /var/lib/nextcloud/config/config.php
