@@ -1,8 +1,18 @@
 ---
 - name: Create zabbix directories
   file:
-    path: /opt/zabbix
+    path: "{{ item.path }}"
     state: directory
+    owner: "{{ item.owner | default(omit) }}"
+    group: "{{ item.group | default(omit) }}"
+    mode: "{{ item.mode | default(omit) }}"
+  loop:
+    - path: /opt/zabbix
+      mode: '0755'
+    - path: /var/lib/zabbix/db
+      owner: '999'
+      group: '999'
+      mode: '0700'
 
 - name: Copy Zabbix server docker-compose
   template:
@@ -14,4 +24,22 @@
   shell: docker compose up -d
   args:
     chdir: /opt/zabbix
+  changed_when: false
+
+- name: Wait for Zabbix web port
+  wait_for:
+    host: 127.0.0.1
+    port: 8080
+    delay: 5
+    timeout: 180
+
+- name: Wait until Zabbix web finishes database initialization
+  uri:
+    url: http://127.0.0.1:8080
+    return_content: true
+    status_code: 200
+  register: zabbix_web_check
+  until: "'Database error' not in zabbix_web_check.content"
+  retries: 30
+  delay: 10
   changed_when: false
