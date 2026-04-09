@@ -9,6 +9,22 @@
     - /var/lib/nextcloud/config
     - /var/lib/nextcloud/apps
 
+- name: Ensure Nextcloud data directory exists on mounted storage
+  file:
+    path: /mnt/nextcloud
+    state: directory
+    owner: '33'
+    group: '33'
+    mode: '0770'
+
+- name: Ensure Nextcloud data directory marker exists
+  file:
+    path: /mnt/nextcloud/.ocdata
+    state: touch
+    owner: '33'
+    group: '33'
+    mode: '0640'
+
 - name: Copy docker-compose
   template:
     src: docker-compose.yml.j2
