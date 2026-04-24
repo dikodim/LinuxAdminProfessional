@@ -3,6 +3,11 @@ output "edge_gateway_name" {
   value       = module.nsxv_edge.edge_gateway_name
 }
 
+output "public_ip" {
+  description = "Public IP reserved for the NSX-V Edge / Nextcloud publishing."
+  value       = module.nsxv_edge.public_ip
+}
+
 output "dmz_network_name" {
   description = "Planned DMZ network name."
   value       = module.nsxv_edge.dmz_network_name
@@ -23,12 +28,7 @@ output "postgres_nodes" {
   value       = module.postgres_cluster.node_names
 }
 
-output "monitoring_nodes" {
-  description = "Planned monitoring VM names."
-  value       = module.monitoring_stack.node_names
-}
-
-output "backup_nodes" {
-  description = "Planned backup VM names."
-  value       = module.backup_stack.node_names
+output "services_nodes" {
+  description = "Planned shared services VM names."
+  value       = module.services_node.node_names
 }

@@ -1,67 +1,84 @@
 ---
-# Восстановление упавшей ноды
-# Примеры:
-#   ansible-playbook recover.yml --limit nextcloud-1
-#   ansible-playbook recover.yml --limit postgres-2
-#   ansible-playbook recover.yml --limit monitor
+# Re-apply configuration after Terraform recreates a VM from the template.
+# Examples:
+#   ansible-playbook -i inventory.ini recover.yml --limit nextcloud-02
+#   ansible-playbook -i inventory.ini recover.yml --limit postgres-replica -e postgres_force_resync=true
+#   GRAFANA_SMTP_PASSWORD=... ansible-playbook -i inventory.ini recover.yml --limit services-1
 
-- name: Recover Monitor
-  hosts: monitor
+- name: Recover services node
+  hosts: services
   become: true
+  strategy: free
   roles:
+    - role: dns
+    - role: grow_rootfs
+      tags: [rootfs]
+    - role: storage_cleanup
     - role: docker
-    - role: nfs
-      vars:
-        nfs_role: server
-    - role: zabbix
-      vars:
-        zabbix_role: server
     - role: rsyslog
       vars:
         rsyslog_role: server
+    - role: nfs
+      vars:
+        nfs_role: server
+    - role: services_stack
+  tags: [services, monitoring, nfs, logs]
 
-- name: Recover PostgreSQL Primary
-  hosts: postgres-1
+- name: Recover PostgreSQL primary
+  hosts: postgres_primary
   become: true
+  strategy: free
   roles:
-    - role: docker
-    - role: postgres
+    - role: dns
+    - role: grow_rootfs
+      tags: [rootfs]
+    - role: storage_cleanup
+    - role: node_exporter
+    - role: rsyslog
+      vars:
+        rsyslog_role: client
+    - role: postgres_native
+    - role: postgres_exporter
     - role: backup
-    - role: zabbix
-      vars:
-        zabbix_role: agent
-    - role: rsyslog
-      vars:
-        rsyslog_role: client
+  tags: [postgres, postgres-primary, metrics, logs]
 
-- name: Recover PostgreSQL Replica
-  hosts: postgres-2
+- name: Recover PostgreSQL replica
+  hosts: postgres_replica
   become: true
+  strategy: free
+  vars:
+    postgres_force_resync: true
   roles:
-    - role: docker
-    - role: postgres
-      vars:
-        postgres_force_resync: true
-    - role: zabbix
-      vars:
-        zabbix_role: agent
+    - role: dns
+    - role: grow_rootfs
+      tags: [rootfs]
+    - role: storage_cleanup
+    - role: node_exporter
     - role: rsyslog
       vars:
         rsyslog_role: client
+    - role: postgres_native
+    - role: postgres_exporter
+  tags: [postgres, postgres-replica, metrics, logs]
 
 - name: Recover Nextcloud node
   hosts: nextcloud
   become: true
+  strategy: free
   roles:
+    - role: dns
+    - role: grow_rootfs
+      tags: [rootfs]
+    - role: storage_cleanup
     - role: docker
+    - role: node_exporter
+    - role: rsyslog
+      vars:
+        rsyslog_role: client
+    - role: certs
     - role: nfs
       vars:
         nfs_role: client
     - role: nextcloud
     - role: keepalived
-    - role: zabbix
-      vars:
-        zabbix_role: agent
-    - role: rsyslog
-      vars:
-        rsyslog_role: client
+  tags: [nextcloud, metrics, logs]

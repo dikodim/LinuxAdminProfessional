@@ -8,3 +8,14 @@ id_rsa.pub
 *.pem
 otus-linux-adm
 .vscode
+Project/terraform/terraform.tfvars
+.DS_Store
+.env
+.env.*
+*.env
+Project/ansible/.smtp.env
+**/.terraform/*
+**/.terraform.lock.hcl
+**/.terraform.tfstate.lock.info
+**/*.tfstate
+**/*.tfstate.*

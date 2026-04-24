@@ -1,0 +1,21 @@
+---
+- name: Create replication user
+  become_user: postgres
+  shell: |
+    psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='{{ postgres_replication_user }}'" | grep -q 1 || \
+    psql -c "CREATE ROLE {{ postgres_replication_user }} WITH REPLICATION LOGIN PASSWORD '{{ postgres_replication_password }}';"
+  changed_when: false
+
+- name: Create application user
+  become_user: postgres
+  shell: |
+    psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='{{ postgres_user }}'" | grep -q 1 || \
+    psql -c "CREATE ROLE {{ postgres_user }} WITH LOGIN PASSWORD '{{ postgres_password }}';"
+  changed_when: false
+
+- name: Create application database
+  become_user: postgres
+  shell: |
+    psql -tAc "SELECT 1 FROM pg_database WHERE datname='{{ postgres_db }}'" | grep -q 1 || \
+    psql -c "CREATE DATABASE {{ postgres_db }} OWNER {{ postgres_user }};"
+  changed_when: false

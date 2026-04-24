@@ -1,0 +1,42 @@
+---
+- name: Check if replica is already initialized
+  stat:
+    path: "{{ postgres_data_dir }}/PG_VERSION"
+  register: postgres_replica_pg_version
+
+- name: Stop PostgreSQL before base backup
+  service:
+    name: postgresql
+    state: stopped
+  when: postgres_force_resync or not postgres_replica_pg_version.stat.exists
+
+- name: Remove old replica data directory
+  file:
+    path: "{{ postgres_data_dir }}"
+    state: absent
+  when: postgres_force_resync or not postgres_replica_pg_version.stat.exists
+
+- name: Recreate replica data directory
+  file:
+    path: "{{ postgres_data_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0700'
+  when: postgres_force_resync or not postgres_replica_pg_version.stat.exists
+
+- name: Run pg_basebackup from primary
+  become_user: postgres
+  shell: |
+    PGPASSWORD="{{ postgres_replication_password }}" \
+    pg_basebackup -h {{ postgres_primary_host }} \
+      -U {{ postgres_replication_user }} \
+      -D {{ postgres_data_dir }} \
+      -Fp -Xs -P -R
+  when: postgres_force_resync or not postgres_replica_pg_version.stat.exists
+
+- name: Start PostgreSQL replica
+  service:
+    name: postgresql
+    state: started
+    enabled: true

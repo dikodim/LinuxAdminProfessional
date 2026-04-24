@@ -6,8 +6,38 @@
     mode: '0755'
   loop:
     - /opt/nextcloud
-    - /var/lib/nextcloud/config
-    - /var/lib/nextcloud/apps
+    - "{{ nfs_mount_point }}/config"
+    - "{{ nfs_mount_point }}/apps"
+
+- name: Check for local Nextcloud config to migrate
+  stat:
+    path: /var/lib/nextcloud/config/config.php
+  register: nextcloud_local_config
+
+- name: Check for shared Nextcloud config
+  stat:
+    path: "{{ nfs_mount_point }}/config/config.php"
+  register: nextcloud_shared_config
+
+- name: Seed shared Nextcloud config from existing local config
+  command:
+    argv:
+      - cp
+      - -a
+      - /var/lib/nextcloud/config/.
+      - "{{ nfs_mount_point }}/config/"
+  when:
+    - nextcloud_local_config.stat.exists
+    - not nextcloud_shared_config.stat.exists
+
+- name: Seed shared Nextcloud apps from existing local apps
+  shell: |
+    if [ -d /var/lib/nextcloud/apps ] && [ -z "$(ls -A {{ nfs_mount_point }}/apps 2>/dev/null)" ]; then
+      cp -a /var/lib/nextcloud/apps/. {{ nfs_mount_point }}/apps/
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
 
 - name: Copy docker-compose
   template:
@@ -27,9 +57,38 @@
     chdir: /opt/nextcloud
   changed_when: false
 
-- name: Wait for Nextcloud to be ready
-  wait_for:
-    port: 9000
-    host: 127.0.0.1
-    delay: 10
-    timeout: 120
+- name: Wait for Nextcloud container to stay running
+  shell: docker inspect -f '{{ "{{.State.Running}}" }}' nextcloud
+  register: nextcloud_container_running
+  until: nextcloud_container_running.stdout == "true"
+  retries: 24
+  delay: 5
+  changed_when: false
+
+- name: Set Nextcloud overwrite host
+  shell: docker exec -u www-data nextcloud php occ config:system:set overwritehost --value="{{ nextcloud_domain }}"
+  args:
+    chdir: /opt/nextcloud
+  changed_when: false
+  failed_when: false
+
+- name: Set Nextcloud overwrite CLI URL
+  shell: docker exec -u www-data nextcloud php occ config:system:set overwrite.cli.url --value="https://{{ nextcloud_domain }}"
+  args:
+    chdir: /opt/nextcloud
+  changed_when: false
+  failed_when: false
+
+- name: Set Nextcloud database host
+  shell: docker exec -u www-data nextcloud php occ config:system:set dbhost --value="{{ postgres_primary_host }}"
+  args:
+    chdir: /opt/nextcloud
+  changed_when: false
+  failed_when: false
+
+- name: Allow local remote servers
+  shell: docker exec -u www-data nextcloud php occ config:system:set allow_local_remote_servers --type=boolean --value=true
+  args:
+    chdir: /opt/nextcloud
+  changed_when: false
+  failed_when: false

@@ -1,0 +1,60 @@
+{% raw %}
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "content": "## Logs Workspace\nDatasource `VictoriaLogs` is connected.\n\nUse **Explore** in Grafana with these LogsQL starters:\n\n- `*`\n- `source_host:nextcloud-01`\n- `source_host:nextcloud-02`\n- `source_host:postgres-primary`\n- `source_host:postgres-replica`\n- `source_host:services-1`\n- `program:nginx* error`\n- `program:postgres* error`\n- `program:sshd*`\n\nWhen `/var/log/remote` receives files, these queries should return data immediately.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.0.0",
+      "title": "VictoriaLogs Queries",
+      "type": "text"
+    },
+    {
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 8 },
+      "id": 2,
+      "options": {
+        "content": "## Log Pipeline\n`rsyslog client -> services-1:1514 -> /var/log/remote -> Vector -> VictoriaLogs -> Grafana`\n\nIf queries are empty, first verify:\n\n- `ss -ltnup | grep 1514` on `services-1`\n- files appear under `/var/log/remote`\n- `vector` container is `Up`\n- `VictoriaLogs` responds on `:9428`",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.0.0",
+      "title": "Pipeline Notes",
+      "type": "text"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [ "logs", "victorialogs", "operations" ],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Logs Workspace",
+  "uid": "logs-workspace",
+  "version": 1,
+  "weekStart": ""
+}
+{% endraw %}

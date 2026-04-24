@@ -1,0 +1,33 @@
+---
+- name: Ensure systemd-resolved drop-in directory exists
+  file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when:
+    - ansible_os_family == 'Debian'
+    - ansible_service_mgr == 'systemd'
+
+- name: Configure upstream DNS servers
+  copy:
+    dest: /etc/systemd/resolved.conf.d/10-ansible-upstream-dns.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Resolve]
+      DNS={{ dns_nameservers | join(' ') }}
+      FallbackDNS={{ dns_fallback_nameservers | join(' ') }}
+      Domains=~.
+  notify: restart systemd-resolved
+  when:
+    - ansible_os_family == 'Debian'
+    - ansible_service_mgr == 'systemd'
+
+- name: Apply DNS changes immediately
+  meta: flush_handlers
+  when:
+    - ansible_os_family == 'Debian'
+    - ansible_service_mgr == 'systemd'

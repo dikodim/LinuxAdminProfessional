@@ -1,0 +1,9 @@
+---
+- name: restart services stack
+  command: docker compose up -d --remove-orphans
+  args:
+    chdir: "{{ services_stack_dir }}"
+  register: services_stack_restart
+  until: services_stack_restart.rc == 0
+  retries: 3
+  delay: 20

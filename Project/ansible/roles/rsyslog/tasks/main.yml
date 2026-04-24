@@ -11,8 +11,25 @@
     dest: /etc/rsyslog.d/99-remote.conf
   notify: restart rsyslog
 
+- name: Apply rsyslog config changes immediately
+  meta: flush_handlers
+
+- name: Create remote log directory on rsyslog server
+  file:
+    path: /var/log/remote
+    state: directory
+    owner: syslog
+    group: adm
+    mode: '0755'
+  when: rsyslog_role == 'server'
+
 - name: Enable and start rsyslog
   service:
     name: rsyslog
     state: started
     enabled: true
+
+- name: Restart rsyslog to ensure remote listener or forwarder is active
+  service:
+    name: rsyslog
+    state: restarted

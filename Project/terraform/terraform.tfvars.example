@@ -14,45 +14,83 @@ vcd = {
   allow_unverified_ssl = true
 }
 
+vm_customization = {
+  admin_password     = "ChangeMe123!"
+  ssh_authorized_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleReplaceMeWithYourRealPublicKey user@host"
+}
+
 nsxv_edge = {
   edge_gateway_name    = "b2b-k8s-test-kube-version2_vc4-egde"
+  public_ip            = "185.98.82.7"
+  allowed_source_ipset = {
+    name         = "white-list"
+    ip_addresses = [
+      "95.131.29.211",
+      "95.131.29.217",
+      "81.200.26.66",
+      "178.155.5.254",
+      "46.138.154.136",
+      "62.109.7.84",
+    ]
+  }
   external_network     = "SM-internet-2820"
   dmz_network_name     = "dmz-nextcloud"
-  dmz_subnet_cidr      = "172.16.10.0/24"
-  dmz_gateway_ip       = "172.16.10.1"
+  dmz_subnet_cidr      = "192.168.36.0/24"
+  dmz_gateway_ip       = "192.168.36.1"
   internal_network_name = "internal-nextcloud"
-  internal_subnet_cidr  = "172.16.20.0/24"
-  internal_gateway_ip   = "172.16.20.1"
+  internal_subnet_cidr  = "192.168.46.0/24"
+  internal_gateway_ip   = "192.168.46.1"
+  ssh_port_forwards = [
+    { name = "nextcloud-01",    internal_ip = "192.168.36.11", external_port = 2201 },
+    { name = "nextcloud-02",    internal_ip = "192.168.36.12", external_port = 2202 },
+    { name = "postgres-primary", internal_ip = "192.168.46.13", external_port = 2213 },
+    { name = "postgres-replica", internal_ip = "192.168.46.14", external_port = 2214 },
+    { name = "services-1",       internal_ip = "192.168.46.15", external_port = 2215 },
+  ]
 }
 
 nextcloud_cluster = {
+  catalog_org   = "B2B-service-public"
+  catalog_name  = "public-vc7-NORD3"
   cluster_name  = "nextcloud"
   node_count    = 2
   template_name = "Ubuntu-22_04_16G"
   vm_cpu        = 2
   vm_memory_mb  = 4096
-  dmz_ips       = ["172.16.10.11", "172.16.10.12"]
+  storage_profile = "SSD"
+  root_disk_size_mb = 65536
+  vip_ip        = "192.168.36.10"
+  dmz_ips       = ["192.168.36.11", "192.168.36.12"]
 }
 
 postgres_cluster = {
+  catalog_org   = "B2B-service-public"
+  catalog_name  = "public-vc7-NORD3"
   cluster_name  = "postgres"
   template_name = "Ubuntu-22_04_16G"
   vm_cpu        = 2
   vm_memory_mb  = 4096
-  primary_ip    = "172.16.20.13"
-  replica_ip    = "172.16.20.14"
+  storage_profile = "SSD"
+  root_disk_size_mb = 32768
+  primary_ip    = "192.168.46.13"
+  replica_ip    = "192.168.46.14"
 }
 
-monitoring_stack = {
-  prometheus_vm_name = "prometheus-1"
-  prometheus_ip      = "172.16.20.21"
-  grafana_vm_name    = "grafana-1"
-  grafana_ip         = "172.16.20.22"
-}
-
-backup_stack = {
-  backup_vm_name   = "backup-1"
-  backup_ip        = "172.16.20.31"
-  repository_type  = "restic"
-  pg_dump_schedule = "0 3 * * *"
+services_node = {
+  vm_name             = "services-1"
+  catalog_org         = "B2B-service-public"
+  catalog_name        = "public-vc7-NORD3"
+  template_name       = "Ubuntu-22_04_16G"
+  vm_cpu              = 2
+  vm_memory_mb        = 4096
+  storage_profile     = "SSD"
+  root_disk_size_mb   = 65536
+  service_ip          = "192.168.46.15"
+  enable_prometheus   = true
+  enable_grafana      = true
+  enable_victorialogs = true
+  enable_backup       = true
+  enable_nfs          = true
+  repository_type     = "restic"
+  pg_dump_schedule    = "0 3 * * *"
 }

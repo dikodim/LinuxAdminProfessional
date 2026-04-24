@@ -1,0 +1,44 @@
+---
+- name: Clean APT cache and package lists
+  shell: |
+    apt-get clean
+    rm -rf /var/cache/apt/archives/*.deb /var/cache/apt/archives/partial/* /var/lib/apt/lists/*
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when: ansible_os_family == 'Debian'
+
+- name: Clean temporary directories
+  shell: |
+    find /tmp /var/tmp -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Vacuum systemd journal
+  shell: journalctl --vacuum-size={{ journal_vacuum_size }}
+  changed_when: false
+  failed_when: false
+  when: ansible_service_mgr == 'systemd'
+
+- name: Prune unused Docker artifacts
+  shell: |
+    if command -v docker >/dev/null 2>&1; then
+      docker system prune -af --volumes
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+  failed_when: false
+
+- name: Check free space on root filesystem
+  shell: df -Pm / | awk 'NR==2 {print $4}'
+  register: root_free_space_mb
+  changed_when: false
+
+- name: Fail if free space is below threshold
+  fail:
+    msg: >-
+      Only {{ root_free_space_mb.stdout | trim }} MB free on / after cleanup,
+      need at least {{ minimum_root_free_mb }} MB. Increase VM disk size or reduce image/package footprint.
+  when: (root_free_space_mb.stdout | trim | int) < minimum_root_free_mb

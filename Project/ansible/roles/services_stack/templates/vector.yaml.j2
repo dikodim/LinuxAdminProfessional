@@ -1,0 +1,43 @@
+data_dir: /var/lib/vector
+
+sources:
+  rsyslog_files:
+    type: file
+    include:
+      - /var/log/remote/**/*.log
+    file_key: file
+    read_from: beginning
+
+transforms:
+  enrich_rsyslog_logs:
+    type: remap
+    inputs:
+      - rsyslog_files
+    source: |
+      .source = "rsyslog"
+      .message = string!(.message)
+      .host = del(.host)
+
+      parsed, err = parse_regex(.file, r'^/var/log/remote/(?P<source_host>[^/]+)/(?P<program>[^/]+)\.log$')
+      if err == null {
+        .source_host = parsed.source_host
+        .program = parsed.program
+      } else {
+        .source_host = "unknown"
+        .program = "unknown"
+      }
+
+sinks:
+  victorialogs:
+    type: http
+    inputs:
+      - enrich_rsyslog_logs
+    uri: http://victorialogs:9428/insert/jsonline?_stream_fields=source_host,program&_msg_field=message&_time_field=timestamp
+    method: post
+    compression: gzip
+    encoding:
+      codec: json
+    framing:
+      method: newline_delimited
+    healthcheck:
+      enabled: false

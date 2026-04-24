@@ -1,0 +1,45 @@
+---
+- name: Install PostgreSQL exporter
+  apt:
+    name: prometheus-postgres-exporter
+    state: present
+    update_cache: true
+
+- name: Create systemd override directory for PostgreSQL exporter
+  file:
+    path: /etc/systemd/system/prometheus-postgres-exporter.service.d
+    state: directory
+    mode: '0755'
+
+- name: Configure PostgreSQL exporter defaults
+  copy:
+    dest: /etc/default/prometheus-postgres-exporter
+    mode: '0640'
+    owner: root
+    group: root
+    content: |
+      DATA_SOURCE_NAME='{{ postgres_exporter_data_source_name }}'
+      PG_EXPORTER_AUTO_DISCOVER_DATABASES='{{ postgres_exporter_auto_discover_databases | string | lower }}'
+  notify: restart postgres exporter
+
+- name: Configure PostgreSQL exporter to read local PostgreSQL instance as postgres user
+  copy:
+    dest: /etc/systemd/system/prometheus-postgres-exporter.service.d/override.conf
+    mode: '0644'
+    content: |
+      [Service]
+      User=postgres
+      Group=postgres
+      Environment="DATA_SOURCE_NAME={{ postgres_exporter_data_source_name }}"
+      Environment="PG_EXPORTER_AUTO_DISCOVER_DATABASES={{ postgres_exporter_auto_discover_databases | string | lower }}"
+  notify: restart postgres exporter
+
+- name: Reload systemd after PostgreSQL exporter override
+  systemd:
+    daemon_reload: true
+
+- name: Enable and start PostgreSQL exporter
+  service:
+    name: prometheus-postgres-exporter
+    state: started
+    enabled: true

@@ -1,0 +1,64 @@
+---
+- name: Install PostgreSQL packages
+  apt:
+    name:
+      - postgresql
+      - postgresql-contrib
+      - postgresql-client
+    state: present
+    update_cache: true
+
+- name: Ensure PostgreSQL conf.d directory exists
+  file:
+    path: "{{ postgres_conf_dir }}/conf.d"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0755'
+
+- name: Configure PostgreSQL HA settings
+  template:
+    src: postgresql-ha.conf.j2
+    dest: "{{ postgres_conf_dir }}/conf.d/20-nextcloud-ha.conf"
+    owner: postgres
+    group: postgres
+    mode: '0644'
+  notify: restart postgresql
+
+- name: Configure PostgreSQL access rules
+  blockinfile:
+    path: "{{ postgres_conf_dir }}/pg_hba.conf"
+    marker: "# {mark} ANSIBLE NEXTCLOUD ACCESS"
+    block: |
+      host    postgres        {{ postgres_user }}            {{ dmz_network }}      scram-sha-256
+      host    postgres        {{ postgres_user }}            {{ internal_network }} scram-sha-256
+      host    {{ postgres_db }} {{ postgres_user }}          {{ dmz_network }}      scram-sha-256
+      host    {{ postgres_db }} {{ postgres_user }}          {{ internal_network }} scram-sha-256
+      host    replication     {{ postgres_replication_user }} {{ postgres_primary_host }}/32 scram-sha-256
+      host    replication     {{ postgres_replication_user }} {{ postgres_replica_host }}/32 scram-sha-256
+  notify: restart postgresql
+
+- name: Ensure PostgreSQL service is enabled
+  service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Apply pending PostgreSQL config changes
+  meta: flush_handlers
+
+- name: Restore PostgreSQL primary from replica
+  include_tasks: restore_primary_from_replica.yml
+  when:
+    - postgres_role == 'primary'
+    - postgres_restore_source_host | default('') | length > 0
+
+- name: Configure PostgreSQL primary
+  include_tasks: primary.yml
+  when:
+    - postgres_role == 'primary'
+    - postgres_restore_source_host | default('') | length == 0
+
+- name: Configure PostgreSQL replica
+  include_tasks: replica.yml
+  when: postgres_role == 'replica'

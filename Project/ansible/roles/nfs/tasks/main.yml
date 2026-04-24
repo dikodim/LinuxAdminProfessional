@@ -17,14 +17,48 @@
   file:
     path: "{{ nfs_export_dir }}"
     state: directory
-    mode: '0777'
+    owner: "33"
+    group: "33"
+    mode: '0770'
+  when: nfs_role == 'server'
+
+- name: Create shared Nextcloud directories on NFS storage
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "33"
+    group: "33"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ nfs_export_dir }}/config", mode: "0770" }
+    - { path: "{{ nfs_export_dir }}/apps", mode: "0770" }
+  when: nfs_role == 'server'
+
+- name: Ensure exports.d exists
+  file:
+    path: /etc/exports.d
+    state: directory
+    mode: '0755'
+  when: nfs_role == 'server'
+
+- name: Create Nextcloud data markers on NFS storage
+  file:
+    path: "{{ item.path }}"
+    state: touch
+    owner: "33"
+    group: "33"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ nfs_export_dir }}/.ocdata", mode: "0640" }
+    - { path: "{{ nfs_export_dir }}/nextcloud.log", mode: "0660" }
   when: nfs_role == 'server'
 
 - name: Configure NFS exports
-  lineinfile:
-    path: /etc/exports
-    line: "{{ nfs_export_dir }} {{ internal_network }}(rw,sync,no_subtree_check,no_root_squash)"
-    create: true
+  copy:
+    dest: /etc/exports.d/nextcloud.exports
+    mode: '0644'
+    content: |
+      {{ nfs_export_dir }} {{ dmz_network }}(rw,sync,no_subtree_check,no_root_squash) {{ internal_network }}(rw,sync,no_subtree_check,no_root_squash)
   notify: restart nfs
   when: nfs_role == 'server'
 
@@ -35,17 +69,21 @@
     enabled: true
   when: nfs_role == 'server'
 
+- name: Apply NFS export changes immediately
+  meta: flush_handlers
+  when: nfs_role == 'server'
+
 - name: Create mount point on client
   file:
-    path: /mnt/nextcloud
+    path: "{{ nfs_mount_point }}"
     state: directory
   when: nfs_role == 'client'
 
 - name: Mount NFS share
   mount:
-    path: /mnt/nextcloud
+    path: "{{ nfs_mount_point }}"
     src: "{{ nfs_server }}:{{ nfs_export_dir }}"
     fstype: nfs
-    opts: rw,sync,hard
+    opts: rw,sync,hard,nfsvers=4.2
     state: mounted
   when: nfs_role == 'client'

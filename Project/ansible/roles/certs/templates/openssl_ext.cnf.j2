@@ -5,7 +5,10 @@ subjectAltName=@alt_names
 
 [alt_names]
 DNS.1 = {{ nextcloud_domain }}
-DNS.2 = nextcloud.local
+DNS.2 = {{ grafana_domain }}
+DNS.3 = {{ prometheus_domain }}
+DNS.4 = {{ logs_domain }}
 IP.1  = {{ vip_address }}
 IP.2  = {{ nextcloud1_dmz_ip }}
 IP.3  = {{ nextcloud2_dmz_ip }}
+IP.4  = {{ public_ip }}

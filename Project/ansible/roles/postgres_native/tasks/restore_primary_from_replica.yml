@@ -1,0 +1,57 @@
+---
+- name: Check if PostgreSQL primary data directory is already initialized
+  stat:
+    path: "{{ postgres_data_dir }}/PG_VERSION"
+  register: postgres_primary_pg_version
+
+- name: Stop PostgreSQL before restoring primary from replica
+  service:
+    name: postgresql
+    state: stopped
+  when: postgres_restore_force_resync | default(true) | bool or not postgres_primary_pg_version.stat.exists
+
+- name: Remove old primary data directory
+  file:
+    path: "{{ postgres_data_dir }}"
+    state: absent
+  when: postgres_restore_force_resync | default(true) | bool or not postgres_primary_pg_version.stat.exists
+
+- name: Recreate primary data directory
+  file:
+    path: "{{ postgres_data_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0700'
+  when: postgres_restore_force_resync | default(true) | bool or not postgres_primary_pg_version.stat.exists
+
+- name: Run pg_basebackup from replica to rebuild primary
+  become_user: postgres
+  shell: |
+    PGPASSWORD="{{ postgres_replication_password }}" \
+    pg_basebackup -h {{ postgres_restore_source_host }} \
+      -U {{ postgres_replication_user }} \
+      -D {{ postgres_data_dir }} \
+      -Fp -Xs -P
+  when: postgres_restore_force_resync | default(true) | bool or not postgres_primary_pg_version.stat.exists
+
+- name: Remove standby marker files from rebuilt primary
+  file:
+    path: "{{ postgres_data_dir }}/{{ item }}"
+    state: absent
+  loop:
+    - standby.signal
+    - recovery.signal
+
+- name: Remove replica connection settings from rebuilt primary
+  lineinfile:
+    path: "{{ postgres_data_dir }}/postgresql.auto.conf"
+    regexp: '^(primary_conninfo|primary_slot_name)\s*='
+    state: absent
+  failed_when: false
+
+- name: Start rebuilt PostgreSQL primary
+  service:
+    name: postgresql
+    state: started
+    enabled: true

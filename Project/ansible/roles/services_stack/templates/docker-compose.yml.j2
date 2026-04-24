@@ -1,0 +1,114 @@
+services:
+  victorialogs:
+    image: victoriametrics/victoria-logs:latest
+    container_name: victorialogs
+    restart: unless-stopped
+    command:
+      - -storageDataPath=/victoria-logs-data
+      - -httpListenAddr=:9428
+    ports:
+      - "9428:9428"
+    volumes:
+      - victorialogs-data:/victoria-logs-data
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - node-exporter
+{% if alertmanager_enabled | bool %}
+      - alertmanager
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+{% endif %}
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: "{{ grafana_admin_user }}"
+      GF_SECURITY_ADMIN_PASSWORD: "{{ grafana_admin_password }}"
+      GF_SERVER_ROOT_URL: "https://{{ grafana_domain }}"
+      GF_PLUGINS_PREINSTALL_SYNC: victoriametrics-logs-datasource
+      GF_METRICS_ENABLED: "true"
+      GF_SMTP_ENABLED: "{{ grafana_smtp_enabled | string | lower }}"
+{% if grafana_smtp_enabled | bool %}
+      GF_SMTP_HOST: "{{ grafana_smtp_host }}"
+      GF_SMTP_USER: "{{ grafana_smtp_user }}"
+      GF_SMTP_PASSWORD: "{{ grafana_smtp_password }}"
+      GF_SMTP_FROM_ADDRESS: "{{ grafana_smtp_from_address }}"
+      GF_SMTP_FROM_NAME: "{{ grafana_smtp_from_name }}"
+      GF_SMTP_STARTTLS_POLICY: "{{ grafana_smtp_starttls_policy }}"
+      GF_SMTP_SKIP_VERIFY: "{{ grafana_smtp_skip_verify | string | lower }}"
+{% endif %}
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - victorialogs
+
+  vector:
+    image: timberio/vector:latest-alpine
+    container_name: vector
+    restart: unless-stopped
+    command:
+      - --config
+      - /etc/vector/vector.yaml
+    volumes:
+      - ./vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - {{ vector_data_dir }}:/var/lib/vector
+      - /var/log/remote:/var/log/remote:ro
+    depends_on:
+      - victorialogs
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|run/docker/netns)($|/)
+      - --collector.netclass.ignored-devices=^(veth.*|docker.*|br-.*)$
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /run/udev:/run/udev:ro
+    ports:
+      - "9100:9100"
+
+volumes:
+  victorialogs-data:
+  prometheus-data:
+  grafana-data:
+{% if alertmanager_enabled | bool %}
+  alertmanager-data:
+{% endif %}

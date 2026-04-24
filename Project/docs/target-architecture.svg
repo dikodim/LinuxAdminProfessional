@@ -1,0 +1,218 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Target architecture diagram for Terraform vCD / NSX-V Edge Lab</title>
+  <desc id="desc">Architecture diagram with VMware Cloud Director, NSX-V Edge, DMZ Nextcloud cluster, internal PostgreSQL cluster, services node, Terraform, and Ansible flows.</desc>
+  <defs>
+    <marker id="arrow-blue" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="11" markerHeight="11" orient="auto-start-reverse">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="11" markerHeight="11" orient="auto-start-reverse">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#16a34a"/>
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="11" markerHeight="11" orient="auto-start-reverse">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#d97706"/>
+    </marker>
+    <marker id="arrow-slate" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="11" markerHeight="11" orient="auto-start-reverse">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#475569"/>
+    </marker>
+    <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 800 38px Inter, Arial, sans-serif; fill: #0f172a; letter-spacing: 0; }
+      .subtitle { font: 500 18px Inter, Arial, sans-serif; fill: #475569; letter-spacing: 0; }
+      .zone-label { font: 800 24px Inter, Arial, sans-serif; fill: #111827; letter-spacing: 0; }
+      .zone-subtitle { font: 600 15px Inter, Arial, sans-serif; fill: #475569; letter-spacing: 0; }
+      .card-title { font: 800 19px Inter, Arial, sans-serif; fill: #111827; letter-spacing: 0; }
+      .card-subtitle { font: 700 15px Inter, Arial, sans-serif; fill: #334155; letter-spacing: 0; }
+      .small { font: 600 13px Inter, Arial, sans-serif; fill: #475569; letter-spacing: 0; }
+      .tiny { font: 600 12px Inter, Arial, sans-serif; fill: #64748b; letter-spacing: 0; }
+      .mono { font: 700 14px "SFMono-Regular", Consolas, monospace; fill: #0f172a; letter-spacing: 0; }
+      .pill-text { font: 800 12px Inter, Arial, sans-serif; fill: #0f172a; letter-spacing: 0; }
+      .edge { fill: #ffffff; stroke: #2563eb; stroke-width: 2.5; rx: 8; filter: url(#soft-shadow); }
+      .dmz-zone { fill: #eff6ff; stroke: #bfdbfe; stroke-width: 2; rx: 8; }
+      .internal-zone { fill: #ecfdf5; stroke: #bbf7d0; stroke-width: 2; rx: 8; }
+      .automation-zone { fill: #fff7ed; stroke: #fed7aa; stroke-width: 2; rx: 8; }
+      .card { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.6; rx: 8; filter: url(#soft-shadow); }
+      .inner { fill: #f8fafc; stroke: #e2e8f0; stroke-width: 1.3; rx: 7; }
+      .blue-line { fill: none; stroke: #2563eb; stroke-width: 4; marker-end: url(#arrow-blue); }
+      .green-line { fill: none; stroke: #16a34a; stroke-width: 4; marker-end: url(#arrow-green); }
+      .amber-line { fill: none; stroke: #d97706; stroke-width: 4; marker-end: url(#arrow-amber); }
+      .slate-line { fill: none; stroke: #475569; stroke-width: 3.2; marker-end: url(#arrow-slate); }
+      .dash { stroke-dasharray: 10 8; }
+      .label-box { fill: #ffffff; stroke: #e2e8f0; stroke-width: 1; rx: 6; }
+      .icon-circle { fill: #e0f2fe; stroke: #93c5fd; stroke-width: 1.5; }
+      .icon-green { fill: #dcfce7; stroke: #86efac; stroke-width: 1.5; }
+      .icon-amber { fill: #fef3c7; stroke: #fbbf24; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="1080"/>
+
+  <text x="80" y="72" class="title">Target Architecture: Terraform vCD / NSX-V Edge Lab</text>
+  <text x="82" y="106" class="subtitle">Nextcloud in DMZ, PostgreSQL and shared services in Internal network, managed by Terraform and Ansible</text>
+
+  <!-- Top ingress path -->
+  <g transform="translate(80 150)">
+    <rect class="card" x="0" y="0" width="230" height="112"/>
+    <circle class="icon-circle" cx="42" cy="43" r="22"/>
+    <path d="M31 43h22M42 32c8 7 8 15 0 23M42 32c-8 7-8 15 0 23" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+    <path d="M25 43c10-13 25-13 35 0c-10 13-25 13-35 0z" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+    <text x="80" y="39" class="card-title">Users / Internet</text>
+    <text x="80" y="68" class="small">External access</text>
+    <text x="80" y="91" class="mono">HTTPS :443</text>
+  </g>
+
+  <g transform="translate(520 138)">
+    <rect class="edge" x="0" y="0" width="560" height="136"/>
+    <text x="32" y="38" class="card-title">vCD + NSX-V Edge</text>
+    <text x="32" y="68" class="card-subtitle">Routed DMZ/Internal networks, NAT and firewall</text>
+    <text x="32" y="99" class="mono">Public IP: 185.98.82.7</text>
+    <g transform="translate(390 31)">
+      <rect class="inner" x="0" y="0" width="134" height="72"/>
+      <text x="19" y="29" class="pill-text">NAT / DNAT</text>
+      <text x="19" y="52" class="pill-text">Firewall rules</text>
+    </g>
+  </g>
+
+  <path class="blue-line" d="M310 206 C390 206 425 206 510 206"/>
+  <rect class="label-box" x="348" y="174" width="112" height="28"/>
+  <text x="365" y="193" class="tiny">north-south</text>
+
+  <!-- Network zones -->
+  <g transform="translate(80 330)">
+    <rect class="dmz-zone" x="0" y="0" width="660" height="500"/>
+    <text x="28" y="43" class="zone-label">DMZ network</text>
+    <text x="28" y="70" class="zone-subtitle">192.168.36.0/24 | gateway 192.168.36.1 | published frontend tier</text>
+
+    <g transform="translate(48 112)">
+      <rect class="card" x="0" y="0" width="256" height="118"/>
+      <circle class="icon-circle" cx="42" cy="45" r="21"/>
+      <path d="M31 45h22M42 34v22M33 37l18 16M51 37L33 53" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/>
+      <text x="80" y="37" class="card-title">Nextcloud VIP</text>
+      <text x="80" y="66" class="mono">192.168.36.10</text>
+      <text x="80" y="91" class="small">keepalived failover</text>
+    </g>
+
+    <g transform="translate(48 284)">
+      <rect class="card" x="0" y="0" width="256" height="150"/>
+      <text x="26" y="38" class="card-title">nextcloud-01</text>
+      <text x="26" y="67" class="mono">192.168.36.11</text>
+      <text x="26" y="96" class="small">Docker: Nginx + Nextcloud</text>
+      <text x="26" y="122" class="small">keepalived MASTER</text>
+    </g>
+
+    <g transform="translate(356 284)">
+      <rect class="card" x="0" y="0" width="256" height="150"/>
+      <text x="26" y="38" class="card-title">nextcloud-02</text>
+      <text x="26" y="67" class="mono">192.168.36.12</text>
+      <text x="26" y="96" class="small">Docker: Nginx + Nextcloud</text>
+      <text x="26" y="122" class="small">keepalived BACKUP</text>
+    </g>
+
+    <path class="blue-line" d="M176 230 C176 250 176 258 176 276"/>
+    <path class="blue-line" d="M176 230 C340 250 480 252 484 276"/>
+    <rect class="label-box" x="338" y="146" width="250" height="80"/>
+    <text x="360" y="176" class="small">Traffic lands on VIP,</text>
+    <text x="360" y="199" class="small">then active node serves</text>
+    <text x="360" y="222" class="small">Nextcloud frontend.</text>
+  </g>
+
+  <path class="blue-line" d="M800 206 C800 258 410 258 256 437"/>
+  <rect class="label-box" x="592" y="279" width="210" height="30"/>
+  <text x="612" y="300" class="tiny">DNAT HTTPS to VIP</text>
+
+  <g transform="translate(860 330)">
+    <rect class="internal-zone" x="0" y="0" width="660" height="500"/>
+    <text x="28" y="43" class="zone-label">Internal network</text>
+    <text x="28" y="70" class="zone-subtitle">192.168.46.0/24 | gateway 192.168.46.1 | data, monitoring, logs, backup</text>
+
+    <g transform="translate(44 112)">
+      <rect class="card" x="0" y="0" width="262" height="142"/>
+      <circle class="icon-green" cx="42" cy="43" r="21"/>
+      <path d="M28 37h28v30H28zM32 44h20M32 52h20M32 60h20" fill="none" stroke="#16a34a" stroke-width="2" stroke-linejoin="round"/>
+      <text x="80" y="35" class="card-title">postgres-primary</text>
+      <text x="80" y="64" class="mono">192.168.46.13</text>
+      <text x="80" y="92" class="small">PostgreSQL 14 native</text>
+      <text x="80" y="117" class="small">DB: nextcloud</text>
+    </g>
+
+    <g transform="translate(354 112)">
+      <rect class="card" x="0" y="0" width="262" height="142"/>
+      <circle class="icon-green" cx="42" cy="43" r="21"/>
+      <path d="M28 37h28v30H28zM32 44h20M32 52h20M32 60h20" fill="none" stroke="#16a34a" stroke-width="2" stroke-linejoin="round"/>
+      <text x="80" y="35" class="card-title">postgres-replica</text>
+      <text x="80" y="64" class="mono">192.168.46.14</text>
+      <text x="80" y="92" class="small">Streaming replica</text>
+      <text x="80" y="117" class="small">pg_basebackup init</text>
+    </g>
+
+    <path class="green-line" d="M306 184 C324 184 331 184 344 184"/>
+    <rect class="label-box" x="284" y="210" width="118" height="28"/>
+    <text x="301" y="229" class="tiny">replication</text>
+
+    <g transform="translate(156 310)">
+      <rect class="card" x="0" y="0" width="350" height="152"/>
+      <circle class="icon-amber" cx="43" cy="43" r="21"/>
+      <path d="M31 47h24M35 39h16M38 55h10" fill="none" stroke="#d97706" stroke-width="2.4" stroke-linecap="round"/>
+      <text x="82" y="35" class="card-title">services-1</text>
+      <text x="82" y="64" class="mono">192.168.46.15</text>
+      <text x="82" y="92" class="small">Prometheus, Grafana, VictoriaLogs</text>
+      <text x="82" y="117" class="small">NFS export, backup jobs, exporters</text>
+    </g>
+  </g>
+
+  <!-- Cross-zone traffic -->
+  <path class="green-line" d="M612 656 C750 602 845 532 904 514"/>
+  <rect class="label-box" x="696" y="556" width="164" height="31"/>
+  <text x="714" y="577" class="tiny">SQL :5432</text>
+
+  <path class="amber-line" d="M612 720 C766 778 902 740 1014 712"/>
+  <rect class="label-box" x="730" y="742" width="178" height="31"/>
+  <text x="748" y="763" class="tiny">NFS :2049</text>
+
+  <path class="slate-line dash" d="M1232 640 C1052 646 842 706 612 744"/>
+
+  <path class="slate-line dash" d="M1188 640 C1140 612 1060 606 996 584"/>
+
+  <!-- Automation band -->
+  <g transform="translate(80 878)">
+    <rect class="automation-zone" x="0" y="0" width="1440" height="146"/>
+    <text x="28" y="42" class="zone-label">Provisioning and configuration flow</text>
+
+    <g transform="translate(34 65)">
+      <rect class="card" x="0" y="0" width="312" height="56"/>
+      <text x="22" y="27" class="card-title">Terraform</text>
+      <text x="22" y="47" class="small">vCD provider + modules</text>
+    </g>
+
+    <g transform="translate(522 65)">
+      <rect class="card" x="0" y="0" width="350" height="56"/>
+      <text x="22" y="27" class="card-title">vCD resources</text>
+      <text x="22" y="47" class="small">Edge gateway, routed networks, VMs</text>
+    </g>
+
+    <g transform="translate(1048 65)">
+      <rect class="card" x="0" y="0" width="350" height="56"/>
+      <text x="22" y="27" class="card-title">Ansible</text>
+      <text x="22" y="47" class="small">roles configure services</text>
+    </g>
+
+    <path class="amber-line" d="M346 93 C418 93 452 93 512 93"/>
+    <path class="amber-line" d="M872 93 C948 93 980 93 1038 93"/>
+  </g>
+
+  <!-- Legend -->
+  <g transform="translate(1162 140)">
+    <rect class="card" x="0" y="0" width="358" height="134"/>
+    <text x="24" y="36" class="card-title">Legend</text>
+    <path class="blue-line" d="M26 66 h72"/>
+    <text x="116" y="71" class="small">User / published app traffic</text>
+    <path class="green-line" d="M26 94 h72"/>
+    <text x="116" y="99" class="small">Database traffic / replication</text>
+    <path class="amber-line" d="M26 122 h72"/>
+    <text x="116" y="127" class="small">Storage, backup, automation</text>
+  </g>
+
+  <text x="82" y="1050" class="tiny">Source: Project/README.md, Project/ansible/group_vars/all.yml, Project/ansible/inventory.ini, Project/terraform/main.tf</text>
+</svg>

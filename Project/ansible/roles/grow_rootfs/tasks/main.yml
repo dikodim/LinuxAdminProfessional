@@ -1,0 +1,250 @@
+---
+- name: Detect root filesystem source
+  command: findmnt -n -o SOURCE /
+  register: rootfs_source
+  changed_when: false
+
+- name: Detect root filesystem type
+  command: findmnt -n -o FSTYPE /
+  register: rootfs_type
+  changed_when: false
+
+- name: Determine whether root filesystem uses LVM
+  set_fact:
+    rootfs_is_lvm: "{{ (rootfs_source.stdout | trim) is match('^/dev/mapper/') }}"
+
+- name: Check if growpart is available
+  command: which growpart
+  register: growpart_check
+  changed_when: false
+  failed_when: false
+
+- name: Install growpart utility when missing
+  apt:
+    name: cloud-guest-utils
+    state: present
+    update_cache: true
+  when:
+    - growpart_check.rc != 0
+
+- name: Check if xfs_growfs is available
+  command: which xfs_growfs
+  register: xfs_growfs_check
+  changed_when: false
+  failed_when: false
+
+- name: Install XFS tools when required
+  apt:
+    name: xfsprogs
+    state: present
+    update_cache: true
+  when:
+    - (rootfs_type.stdout | trim) == "xfs"
+    - xfs_growfs_check.rc != 0
+
+- name: Check if LVM tools are available
+  command: which lvs
+  register: lvs_check
+  changed_when: false
+  failed_when: false
+  when: rootfs_is_lvm
+
+- name: Install LVM tools when required
+  apt:
+    name: lvm2
+    state: present
+    update_cache: true
+  when:
+    - rootfs_is_lvm
+    - lvs_check.rc != 0
+
+- name: Resolve LVM volume group for root filesystem
+  command:
+    argv:
+      - lvs
+      - --noheadings
+      - --options
+      - vg_name
+      - "{{ rootfs_source.stdout | trim }}"
+  register: rootfs_vg_name
+  changed_when: false
+  when: rootfs_is_lvm
+
+- name: Resolve primary physical volume for the root volume group
+  shell: |
+    pvs --noheadings --options pv_name --select vg_name={{ rootfs_vg_name.stdout | trim | quote }} | awk 'NF {print $1; exit}'
+  args:
+    executable: /bin/bash
+  register: rootfs_pv_name
+  changed_when: false
+  when: rootfs_is_lvm
+
+- name: Choose device to grow
+  set_fact:
+    grow_target_source: "{{ (rootfs_pv_name.stdout if rootfs_is_lvm else rootfs_source.stdout) | trim }}"
+
+- name: Derive disk and partition number from grow target
+  shell: |
+    set -euo pipefail
+
+    src="{{ grow_target_source }}"
+
+    case "$src" in
+      /dev/nvme*n*p[0-9]*|/dev/mmcblk*p[0-9]*)
+        disk="${src%p[0-9]*}"
+        part="${src##*p}"
+        ;;
+      /dev/*[0-9])
+        disk="${src%[0-9]*}"
+        part="${src##*[!0-9]}"
+        ;;
+      *)
+        echo "unsupported:$src"
+        exit 1
+        ;;
+    esac
+
+    printf 'disk=%s\npart=%s\n' "$disk" "$part"
+  args:
+    executable: /bin/bash
+  register: grow_target_parts
+  changed_when: false
+
+- name: Fail for unsupported disk layouts
+  fail:
+    msg: >-
+      Unsupported disk layout for automatic resize: {{ grow_target_source }}.
+      Supported layouts are direct partitions like /dev/sda3 or /dev/nvme0n1p3.
+  when: "'unsupported:' in grow_target_parts.stdout"
+
+- name: Set disk facts
+  set_fact:
+    grow_disk_device: "{{ grow_target_parts.stdout | regex_search('disk=(.+)', '\\1') | first }}"
+    grow_disk_partition: "{{ grow_target_parts.stdout | regex_search('part=([0-9]+)', '\\1') | first }}"
+
+- name: Rescan block device after virtual disk resize
+  shell: |
+    set -euo pipefail
+
+    disk_name="$(basename "{{ grow_disk_device }}")"
+
+    if [ -w "/sys/class/block/${disk_name}/device/rescan" ]; then
+      echo 1 > "/sys/class/block/${disk_name}/device/rescan"
+    fi
+
+    blockdev --rereadpt "{{ grow_disk_device }}" || true
+    udevadm settle || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Show block layout before partition grow
+  command:
+    argv:
+      - lsblk
+      - -o
+      - NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT
+      - "{{ grow_disk_device }}"
+  register: root_disk_layout
+  changed_when: false
+
+- name: Report block layout before partition grow
+  debug:
+    var: root_disk_layout.stdout_lines
+
+- name: Expand partition to fill the virtual disk
+  command:
+    argv:
+      - growpart
+      - "{{ grow_disk_device }}"
+      - "{{ grow_disk_partition }}"
+  register: growpart_result
+  changed_when: "'NOCHANGE' not in ((growpart_result.stdout | default('')) ~ (growpart_result.stderr | default('')))"
+  failed_when:
+    - growpart_result.rc != 0
+    - "'NOCHANGE' not in ((growpart_result.stdout | default('')) ~ (growpart_result.stderr | default('')))"
+
+- name: Resize LVM physical volume
+  command:
+    argv:
+      - pvresize
+      - "{{ rootfs_pv_name.stdout | trim }}"
+  register: pvresize_result
+  changed_when: >-
+    '0 physical volume(s) resized' not in ((pvresize_result.stdout | default('')) ~ (pvresize_result.stderr | default('')))
+  when: rootfs_is_lvm
+
+- name: Choose preferred logical volume mountpoint to extend
+  shell: |
+    set -euo pipefail
+
+    for mountpoint in {{ grow_lvm_preferred_mounts | map('quote') | join(' ') }}; do
+      source=$(findmnt -n -o SOURCE "$mountpoint" 2>/dev/null || true)
+      if [ -n "$source" ] && lvs "$source" >/dev/null 2>&1; then
+        printf 'mount=%s\nsource=%s\n' "$mountpoint" "$source"
+        exit 0
+      fi
+    done
+
+    echo "mount=/"
+    echo "source={{ rootfs_source.stdout | trim }}"
+  args:
+    executable: /bin/bash
+  register: lvm_resize_target
+  changed_when: false
+  when: rootfs_is_lvm
+
+- name: Set LVM resize target facts
+  set_fact:
+    lvm_resize_mountpoint: "{{ lvm_resize_target.stdout | regex_search('mount=(.+)', '\\1') | first }}"
+    lvm_resize_source: "{{ lvm_resize_target.stdout | regex_search('source=(.+)', '\\1') | first }}"
+  when: rootfs_is_lvm
+
+- name: Extend selected LVM logical volume and filesystem
+  command:
+    argv:
+      - lvextend
+      - --resizefs
+      - --extents
+      - +100%FREE
+      - "{{ lvm_resize_source }}"
+  register: lvextend_result
+  changed_when: >-
+    'Size of logical volume' in ((lvextend_result.stdout | default('')) ~ (lvextend_result.stderr | default('')))
+  when: rootfs_is_lvm
+
+- name: Resize ext filesystem on root for non-LVM hosts
+  command:
+    argv:
+      - resize2fs
+      - "{{ rootfs_source.stdout | trim }}"
+  when:
+    - not rootfs_is_lvm
+    - (rootfs_type.stdout | trim) in ["ext2", "ext3", "ext4"]
+
+- name: Grow XFS on root mountpoint for non-LVM hosts
+  command:
+    argv:
+      - xfs_growfs
+      - /
+  when:
+    - not rootfs_is_lvm
+    - (rootfs_type.stdout | trim) == "xfs"
+
+- name: Fail for unsupported root filesystem types on non-LVM hosts
+  fail:
+    msg: >-
+      Unsupported root filesystem type {{ rootfs_type.stdout | trim }} for automatic resize.
+      Supported types are ext2/ext3/ext4 and xfs.
+  when:
+    - not rootfs_is_lvm
+    - (rootfs_type.stdout | trim) not in ["ext2", "ext3", "ext4", "xfs"]
+
+- name: Show key filesystem sizes after resize
+  command: df -h / /var
+  register: rootfs_df
+  changed_when: false
+
+- name: Report filesystem sizes after resize
+  debug:
+    var: rootfs_df.stdout_lines

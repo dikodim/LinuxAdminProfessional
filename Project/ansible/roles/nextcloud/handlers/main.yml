@@ -1,5 +1,5 @@
 ---
 - name: restart nextcloud
-  shell: docker compose down && docker compose up -d
+  shell: docker compose up -d --remove-orphans
   args:
     chdir: /opt/nextcloud

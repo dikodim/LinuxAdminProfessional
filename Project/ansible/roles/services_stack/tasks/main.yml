@@ -1,0 +1,277 @@
+---
+- name: Validate Grafana SMTP settings
+  assert:
+    that:
+      - grafana_smtp_host | length > 0
+      - grafana_smtp_user | length > 0
+      - grafana_smtp_password | length > 0
+      - grafana_smtp_from_address | length > 0
+    fail_msg: >-
+      Grafana SMTP is enabled. Set GRAFANA_SMTP_USER and
+      GRAFANA_SMTP_PASSWORD before running this role, or override
+      grafana_smtp_enabled=false.
+    quiet: true
+  when: grafana_smtp_enabled | bool
+
+- name: Validate Alertmanager email settings
+  assert:
+    that:
+      - alertmanager_email_to | length > 0
+      - grafana_smtp_host | length > 0
+      - grafana_smtp_user | length > 0
+      - grafana_smtp_password | length > 0
+      - grafana_smtp_from_address | length > 0
+    fail_msg: >-
+      Alertmanager email notifications are enabled. Set GRAFANA_SMTP_PASSWORD
+      and optionally ALERTMANAGER_EMAIL_TO before running this role, or override
+      alertmanager_enabled=false.
+    quiet: true
+  when: alertmanager_enabled | bool
+
+- name: Create services stack directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ services_stack_dir }}"
+    - "{{ services_stack_dir }}/grafana"
+    - "{{ services_stack_dir }}/vector"
+    - "{{ vector_data_dir }}"
+
+- name: Copy services docker-compose
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ services_stack_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: restart services stack
+
+- name: Copy Prometheus config
+  template:
+    src: prometheus.yml.j2
+    dest: "{{ services_stack_dir }}/prometheus.yml"
+    mode: '0644'
+  notify: restart services stack
+
+- name: Copy Prometheus alert rules
+  template:
+    src: alerts.yml.j2
+    dest: "{{ services_stack_dir }}/alerts.yml"
+    mode: '0644'
+  notify: restart services stack
+
+- name: Copy Alertmanager config
+  template:
+    src: alertmanager.yml.j2
+    dest: "{{ services_stack_dir }}/alertmanager.yml"
+    owner: "65534"
+    group: "65534"
+    mode: '0600'
+  notify: restart services stack
+  when: alertmanager_enabled | bool
+
+- name: Copy Vector config
+  template:
+    src: vector.yaml.j2
+    dest: "{{ services_stack_dir }}/vector/vector.yaml"
+    mode: '0644'
+  notify: restart services stack
+
+- name: Remove Grafana provisioning directory from services node
+  file:
+    path: "{{ services_stack_dir }}/grafana/provisioning"
+    state: absent
+  notify: restart services stack
+
+- name: Remove Grafana dashboard directory from services node
+  file:
+    path: "{{ services_stack_dir }}/grafana/dashboards"
+    state: absent
+  notify: restart services stack
+
+- name: Pull services stack images
+  command: docker compose pull
+  args:
+    chdir: "{{ services_stack_dir }}"
+  register: services_stack_pull
+  until: services_stack_pull.rc == 0
+  retries: 5
+  delay: 30
+  changed_when: false
+
+- name: Start services stack
+  command: docker compose up -d --remove-orphans
+  args:
+    chdir: "{{ services_stack_dir }}"
+  register: services_stack_up
+  until: services_stack_up.rc == 0
+  retries: 3
+  delay: 20
+  changed_when: false
+
+- name: Apply pending services stack restarts immediately
+  meta: flush_handlers
+
+- name: Wait for Prometheus HTTP API
+  uri:
+    url: http://127.0.0.1:9090/-/healthy
+    method: GET
+    status_code: 200
+  register: prometheus_health
+  until: prometheus_health.status == 200
+  retries: 24
+  delay: 5
+
+- name: Recreate Prometheus container to pick up latest scrape config
+  shell: docker compose up -d --force-recreate prometheus
+  args:
+    chdir: "{{ services_stack_dir }}"
+  changed_when: false
+
+- name: Wait for Prometheus after recreate
+  uri:
+    url: http://127.0.0.1:9090/-/healthy
+    method: GET
+    status_code: 200
+  register: prometheus_recreated_health
+  until: prometheus_recreated_health.status == 200
+  retries: 24
+  delay: 5
+
+- name: Reload Prometheus configuration
+  uri:
+    url: http://127.0.0.1:9090/-/reload
+    method: POST
+    status_code: 200
+  changed_when: false
+
+- name: Wait for Grafana container to stay running
+  shell: docker inspect -f '{{ "{{.State.Running}}" }}' grafana
+  register: grafana_container_running
+  until: grafana_container_running.stdout == "true"
+  retries: 24
+  delay: 5
+  changed_when: false
+
+- name: Wait for Grafana HTTP API
+  uri:
+    url: http://127.0.0.1:3000/api/health
+    method: GET
+    status_code: 200
+  register: grafana_health
+  until: grafana_health.status == 200
+  retries: 24
+  delay: 5
+
+- name: Reset Grafana admin password to managed value
+  shell: docker exec grafana grafana cli --homepath /usr/share/grafana admin reset-admin-password '{{ grafana_admin_password }}'
+  changed_when: false
+
+- name: Create Prometheus datasource through Grafana API after startup
+  uri:
+    url: http://127.0.0.1:3000/api/datasources
+    method: POST
+    url_username: "{{ grafana_admin_user }}"
+    url_password: "{{ grafana_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: Prometheus
+      uid: prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus:9090
+      isDefault: true
+      editable: true
+    status_code:
+      - 200
+      - 409
+  register: grafana_prometheus_datasource
+  retries: 12
+  delay: 5
+  until: grafana_prometheus_datasource.status in [200, 409]
+
+- name: Create VictoriaLogs datasource through Grafana API after plugin registration
+  uri:
+    url: http://127.0.0.1:3000/api/datasources
+    method: POST
+    url_username: "{{ grafana_admin_user }}"
+    url_password: "{{ grafana_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: VictoriaLogs
+      uid: victorialogs
+      type: victoriametrics-logs-datasource
+      access: proxy
+      url: http://victorialogs:9428
+      editable: true
+    status_code:
+      - 200
+      - 409
+  register: grafana_victorialogs_datasource
+  retries: 12
+  delay: 5
+  until: grafana_victorialogs_datasource.status in [200, 409]
+
+- name: Create Alertmanager datasource through Grafana API
+  uri:
+    url: http://127.0.0.1:3000/api/datasources
+    method: POST
+    url_username: "{{ grafana_admin_user }}"
+    url_password: "{{ grafana_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      name: Alertmanager
+      uid: alertmanager
+      type: alertmanager
+      access: proxy
+      url: http://alertmanager:9093
+      editable: true
+      jsonData:
+        implementation: prometheus
+        handleGrafanaManagedAlerts: false
+    status_code:
+      - 200
+      - 409
+  register: grafana_alertmanager_datasource
+  retries: 12
+  delay: 5
+  until: grafana_alertmanager_datasource.status in [200, 409]
+  when: alertmanager_enabled | bool
+
+- name: Read current Grafana datasources to capture actual UIDs
+  uri:
+    url: http://127.0.0.1:3000/api/datasources
+    method: GET
+    url_username: "{{ grafana_admin_user }}"
+    url_password: "{{ grafana_admin_password }}"
+    force_basic_auth: true
+    status_code: 200
+  register: grafana_datasources
+
+- name: Store actual Grafana datasource UIDs
+  set_fact:
+    grafana_prometheus_uid: "{{ (grafana_datasources.json | selectattr('name', 'equalto', 'Prometheus') | map(attribute='uid') | first) }}"
+    grafana_victorialogs_uid: "{{ (grafana_datasources.json | selectattr('name', 'equalto', 'VictoriaLogs') | map(attribute='uid') | first) }}"
+
+- name: Import Grafana dashboards through API after startup
+  uri:
+    url: http://127.0.0.1:3000/api/dashboards/db
+    method: POST
+    url_username: "{{ grafana_admin_user }}"
+    url_password: "{{ grafana_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      dashboard: "{{ lookup('template', item.src) | replace('{{ grafana_prometheus_uid }}', grafana_prometheus_uid) | replace('{{ grafana_victorialogs_uid }}', grafana_victorialogs_uid | default('')) | from_json }}"
+      overwrite: true
+    status_code: 200
+  loop:
+    - { src: "dashboard-services-overview.json.j2" }
+    - { src: "dashboard-prometheus-health.json.j2" }
+    - { src: "dashboard-linux-fleet-overview.json.j2" }
+    - { src: "dashboard-scrape-targets.json.j2" }
+    - { src: "dashboard-postgres-overview.json.j2" }
+    - { src: "dashboard-logs-workspace.json.j2" }

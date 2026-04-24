@@ -1,67 +1,110 @@
 ---
-# Сети
-dmz_network:      "192.168.36.0/24"
+public_ip: "185.98.82.7"
+
+dmz_network: "192.168.36.0/24"
 internal_network: "192.168.46.0/24"
 
-# Firewall
-firewall_dmz_ip:      "192.168.36.1"
-firewall_internal_ip: "192.168.46.1"
-firewall_dmz_iface:      "eth1"
-firewall_internal_iface: "eth2"
+dmz_gateway_ip: "192.168.36.1"
+internal_gateway_ip: "192.168.46.1"
 
-# IP адреса (DMZ)
+dns_nameservers:
+  - "1.1.1.1"
+  - "8.8.8.8"
+
+dns_fallback_nameservers:
+  - "9.9.9.9"
+  - "8.8.4.4"
+
+minimum_root_free_mb: 1024
+journal_vacuum_size: 100M
+grow_lvm_preferred_mounts:
+  - /var
+  - /
+
+nextcloud_vip: "192.168.36.10"
+vip_address: "{{ nextcloud_vip }}"
+vip_interface: "{{ ansible_default_ipv4.interface }}"
+
 nextcloud1_dmz_ip: "192.168.36.11"
 nextcloud2_dmz_ip: "192.168.36.12"
-vip_address:       "192.168.36.10"
-vip_interface:     "eth1"
 
-# IP адреса (Internal)
 postgres1_internal_ip: "192.168.46.13"
 postgres2_internal_ip: "192.168.46.14"
-monitor_internal_ip:   "192.168.46.15"
+services_internal_ip: "192.168.46.15"
 
-# Keepalived
-keepalived_vip: "{{ vip_address }}"
+docker_users:
+  - "{{ ansible_user }}"
 
-# PostgreSQL
-postgres_primary_host:         "{{ postgres1_internal_ip }}"
-postgres_replica_host:         "{{ postgres2_internal_ip }}"
-postgres_db:                   "nextcloud"
-postgres_user:                 "nextcloud"
-postgres_password:             "nextcloudpassword"
-postgres_replication_user:     "replicator"
+postgresql_major_version: "14"
+postgres_data_dir: "/var/lib/postgresql/{{ postgresql_major_version }}/main"
+postgres_conf_dir: "/etc/postgresql/{{ postgresql_major_version }}/main"
+postgres_primary_host: "{{ postgres1_internal_ip }}"
+postgres_replica_host: "{{ postgres2_internal_ip }}"
+postgres_db: "nextcloud"
+postgres_user: "nextcloud"
+postgres_password: "nextcloudpassword"
+postgres_replication_user: "replicator"
 postgres_replication_password: "replicatorpassword"
-postgres_force_resync:         false
+postgres_force_resync: false
 
-# Nextcloud
-nextcloud_version:        "28"
-nextcloud_vip:            "{{ vip_address }}"
-nextcloud_domain:         "nextcloud.local"
-nextcloud_admin_user:     "admin"
+nextcloud_version: "28"
+nextcloud_domain: "nextcloud.local"
+grafana_domain: "grafana.nextcloud.local"
+prometheus_domain: "prometheus.nextcloud.local"
+logs_domain: "logs.nextcloud.local"
+nextcloud_admin_user: "admin"
 nextcloud_admin_password: "adminpassword"
-nextcloud_secret:         "changeme_secret_32chars_minimum!"
+grafana_admin_user: "admin"
+grafana_admin_password: "adminpassword"
+grafana_smtp_enabled: true
+grafana_smtp_host: "smtp.gmail.com:587"
+grafana_smtp_user: "{{ lookup('env', 'GRAFANA_SMTP_USER') | default('dmitrij.naumov.14@gmail.com', true) }}"
+grafana_smtp_password: "{{ lookup('env', 'GRAFANA_SMTP_PASSWORD') | replace(' ', '') }}"
+grafana_smtp_from_address: "{{ lookup('env', 'GRAFANA_SMTP_FROM_ADDRESS') | default(grafana_smtp_user, true) }}"
+grafana_smtp_from_name: "Grafana Nextcloud Lab"
+grafana_smtp_starttls_policy: "MandatoryStartTLS"
+grafana_smtp_skip_verify: false
+alertmanager_enabled: true
+alertmanager_email_to: "{{ lookup('env', 'ALERTMANAGER_EMAIL_TO') | default(grafana_smtp_from_address, true) }}"
+alertmanager_group_wait: "30s"
+alertmanager_group_interval: "5m"
+alertmanager_repeat_interval: "4h"
+nextcloud_secret: "changeme_secret_32chars_minimum!"
 
-# TLS сертификаты
-certs_dir:     "/etc/ssl/nextcloud"
-certs_days:    3650
+nextcloud_trusted_domains:
+  - "{{ nextcloud_vip }}"
+  - "{{ nextcloud_domain }}"
+  - "{{ public_ip }}"
+  - "{{ nextcloud1_dmz_ip }}"
+  - "{{ nextcloud2_dmz_ip }}"
+
+certs_dir: "/etc/ssl/nextcloud"
+certs_days: 3650
 certs_country: "RU"
-certs_org:     "MyOrg"
+certs_org: "LinuxAdminProfessional"
 
-# NFS
-nfs_server:     "{{ monitor_internal_ip }}"
+nfs_server: "{{ services_internal_ip }}"
 nfs_export_dir: "/srv/nfs/nextcloud"
+nfs_mount_point: "/mnt/nextcloud"
 
-# Zabbix
-zabbix_version:  "6.4"
-zabbix_server:   "{{ monitor_internal_ip }}"
-zabbix_db:       "zabbix"
-zabbix_user:     "zabbix"
-zabbix_password: "zabbixpassword"
+services_stack_dir: "/opt/services-node"
 
-# Rsyslog
-rsyslog_server: "{{ monitor_internal_ip }}"
-rsyslog_port:   514
+grafana_upstream: "http://{{ services_internal_ip }}:3000"
+prometheus_upstream: "http://{{ services_internal_ip }}:9090"
+victorialogs_upstream: "http://{{ services_internal_ip }}:9428"
+node_exporter_port: 9100
+postgres_exporter_port: 9187
+postgres_exporter_data_source_name: "user=postgres dbname=postgres host=/var/run/postgresql sslmode=disable"
+postgres_exporter_auto_discover_databases: true
+rsyslog_server: "{{ services_internal_ip }}"
+rsyslog_port: 1514
+vector_data_dir: "{{ services_stack_dir }}/vector-data"
+alert_cpu_usage_percent: 90
+alert_memory_available_percent: 10
+alert_rootfs_available_percent: 15
+alert_varfs_available_percent: 15
+alert_load_per_cpu: 1.5
+alert_postgres_connections: 100
 
-# Backup
-backup_dir:       "/var/backups/postgres"
+backup_dir: "/var/backups/postgres"
 backup_keep_days: 7

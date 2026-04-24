@@ -1,0 +1,114 @@
+groups:
+  - name: infrastructure
+    rules:
+      - alert: NodeExporterDown
+        expr: up{job=~"services-node|nextcloud-nodes|postgres-nodes"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node exporter is down on {{ "{{ $labels.instance }}" }}"
+          description: "Prometheus cannot scrape node-exporter on {{ "{{ $labels.instance }}" }} for more than 2 minutes."
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{job=~"services-node|nextcloud-nodes|postgres-nodes",mode="idle"}[5m])) * 100) > {{ alert_cpu_usage_percent | default(90) }}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ "{{ $labels.instance }}" }}"
+          description: "CPU usage on {{ "{{ $labels.instance }}" }} is above {{ alert_cpu_usage_percent | default(90) }}% for 10 minutes."
+
+      - alert: LowMemoryAvailable
+        expr: (node_memory_MemAvailable_bytes{job=~"services-node|nextcloud-nodes|postgres-nodes"} / node_memory_MemTotal_bytes{job=~"services-node|nextcloud-nodes|postgres-nodes"}) * 100 < {{ alert_memory_available_percent | default(10) }}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low memory available on {{ "{{ $labels.instance }}" }}"
+          description: "Available memory on {{ "{{ $labels.instance }}" }} is below {{ alert_memory_available_percent | default(10) }}% for 10 minutes."
+
+      - alert: RootFilesystemLowSpace
+        expr: (node_filesystem_avail_bytes{job=~"services-node|nextcloud-nodes|postgres-nodes",mountpoint="/",fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes{job=~"services-node|nextcloud-nodes|postgres-nodes",mountpoint="/",fstype!~"tmpfs|overlay|squashfs"}) * 100 < {{ alert_rootfs_available_percent | default(15) }}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low root filesystem space on {{ "{{ $labels.instance }}" }}"
+          description: "Available space on / for {{ "{{ $labels.instance }}" }} is below {{ alert_rootfs_available_percent | default(15) }}% for 10 minutes."
+
+      - alert: VarFilesystemLowSpace
+        expr: (node_filesystem_avail_bytes{job=~"services-node|nextcloud-nodes|postgres-nodes",mountpoint="/var",fstype!~"tmpfs|overlay|squashfs"} / node_filesystem_size_bytes{job=~"services-node|nextcloud-nodes|postgres-nodes",mountpoint="/var",fstype!~"tmpfs|overlay|squashfs"}) * 100 < {{ alert_varfs_available_percent | default(15) }}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low /var filesystem space on {{ "{{ $labels.instance }}" }}"
+          description: "Available space on /var for {{ "{{ $labels.instance }}" }} is below {{ alert_varfs_available_percent | default(15) }}% for 10 minutes."
+
+      - alert: HighSystemLoad
+        expr: node_load1{job=~"services-node|nextcloud-nodes|postgres-nodes"} / count by (instance) (node_cpu_seconds_total{job=~"services-node|nextcloud-nodes|postgres-nodes",mode="idle"}) > {{ alert_load_per_cpu | default(1.5) }}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High system load on {{ "{{ $labels.instance }}" }}"
+          description: "1-minute load average per CPU is above {{ alert_load_per_cpu | default(1.5) }} on {{ "{{ $labels.instance }}" }} for 10 minutes."
+
+  - name: postgres
+    rules:
+      - alert: PostgresExporterDown
+        expr: up{job="postgres-exporters"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL exporter is down on {{ "{{ $labels.instance }}" }}"
+          description: "Prometheus cannot scrape postgres exporter on {{ "{{ $labels.instance }}" }}."
+
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down on {{ "{{ $labels.instance }}" }}"
+          description: "The postgres exporter reports pg_up=0 on {{ "{{ $labels.instance }}" }}."
+
+      - alert: PostgreSQLHighConnections
+        expr: sum by (instance) (pg_stat_database_numbackends{datname!~"template0|template1"}) > {{ alert_postgres_connections | default(100) }}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High PostgreSQL connection count on {{ "{{ $labels.instance }}" }}"
+          description: "Active PostgreSQL connections on {{ "{{ $labels.instance }}" }} exceed {{ alert_postgres_connections | default(100) }} for 10 minutes."
+
+  - name: observability
+    rules:
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus is down"
+          description: "Prometheus is not scraping its own metrics."
+
+      - alert: VictoriaLogsDown
+        expr: up{job="observability-stack",instance="victorialogs:9428"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "VictoriaLogs is down"
+          description: "Prometheus cannot scrape VictoriaLogs on victorialogs:9428."
+
+      - alert: GrafanaDown
+        expr: up{job="observability-stack",instance="grafana:3000"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Grafana is down"
+          description: "Prometheus cannot scrape Grafana on grafana:3000."

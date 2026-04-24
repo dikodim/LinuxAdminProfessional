@@ -1,0 +1,78 @@
+---
+- name: Services node | Docker + NFS + observability
+  hosts: services
+  become: true
+  strategy: free
+  roles:
+    - role: dns
+    - role: grow_rootfs
+      tags: [rootfs]
+    - role: storage_cleanup
+    - role: docker
+    - role: rsyslog
+      vars:
+        rsyslog_role: server
+    - role: nfs
+      vars:
+        nfs_role: server
+    - role: services_stack
+  tags: [services, monitoring, nfs, logs]
+
+- name: PostgreSQL primary | native packages
+  hosts: postgres_primary
+  become: true
+  strategy: free
+  roles:
+    - role: dns
+    - role: grow_rootfs
+      tags: [rootfs]
+    - role: storage_cleanup
+    - role: node_exporter
+    - role: rsyslog
+      vars:
+        rsyslog_role: client
+    - role: postgres_native
+    - role: postgres_exporter
+    - role: backup
+  tags: [postgres, postgres-primary, metrics, logs]
+
+- name: PostgreSQL replica | native packages
+  hosts: postgres_replica
+  become: true
+  strategy: free
+  roles:
+    - role: dns
+    - role: grow_rootfs
+      tags: [rootfs]
+    - role: storage_cleanup
+    - role: node_exporter
+    - role: rsyslog
+      vars:
+        rsyslog_role: client
+    - role: postgres_native
+    - role: postgres_exporter
+  tags: [postgres, postgres-replica, metrics, logs]
+
+- name: Nextcloud backends | Docker + keepalived
+  hosts: nextcloud
+  become: true
+  strategy: free
+  roles:
+    - role: dns
+    - role: grow_rootfs
+      tags: [rootfs]
+    - role: storage_cleanup
+    - role: docker
+    - role: node_exporter
+    - role: rsyslog
+      vars:
+        rsyslog_role: client
+    - role: certs
+    - role: nfs
+      vars:
+        nfs_role: client
+    - role: storage_cleanup
+    - role: nextcloud
+    - role: storage_cleanup
+    - role: keepalived
+  tags: [nextcloud, metrics, logs]

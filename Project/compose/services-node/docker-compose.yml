@@ -1,0 +1,70 @@
+services:
+  # Shared services node compose stack.
+  # PostgreSQL is intentionally NOT placed here and should live on dedicated VMs
+  # as a native package-based deployment.
+  victorialogs:
+    image: victoriametrics/victoria-logs:latest
+    container_name: victorialogs
+    restart: unless-stopped
+    command:
+      - -storageDataPath=/victoria-logs-data
+      - -httpListenAddr=:9428
+    ports:
+      - "9428:9428"
+    volumes:
+      - victorialogs-data:/victoria-logs-data
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - node-exporter
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SMTP_ENABLED: "${GRAFANA_SMTP_ENABLED:-true}"
+      GF_SMTP_HOST: "${GRAFANA_SMTP_HOST:-smtp.gmail.com:587}"
+      GF_SMTP_USER: "${GRAFANA_SMTP_USER:?set GRAFANA_SMTP_USER to your Gmail or Google Workspace address}"
+      GF_SMTP_PASSWORD: "${GRAFANA_SMTP_PASSWORD:?set GRAFANA_SMTP_PASSWORD to a Google app password}"
+      GF_SMTP_FROM_ADDRESS: "${GRAFANA_SMTP_FROM_ADDRESS:?set GRAFANA_SMTP_FROM_ADDRESS to the sender address}"
+      GF_SMTP_FROM_NAME: "${GRAFANA_SMTP_FROM_NAME:-Grafana Nextcloud Lab}"
+      GF_SMTP_STARTTLS_POLICY: "${GRAFANA_SMTP_STARTTLS_POLICY:-MandatoryStartTLS}"
+      GF_SMTP_SKIP_VERIFY: "${GRAFANA_SMTP_SKIP_VERIFY:-false}"
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - victorialogs
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    ports:
+      - "9100:9100"
+
+volumes:
+  victorialogs-data:
+  prometheus-data:
+  grafana-data:

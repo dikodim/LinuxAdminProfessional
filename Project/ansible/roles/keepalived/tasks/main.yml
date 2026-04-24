@@ -1,7 +1,9 @@
 ---
 - name: Install keepalived
   apt:
-    name: keepalived
+    name:
+      - keepalived
+      - curl
     state: present
     update_cache: true
 

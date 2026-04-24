@@ -6,7 +6,7 @@ DUMP_FILE="{{ backup_dir }}/{{ postgres_db }}_${DATE}.sql.gz"
 
 echo "[$(date)] Starting backup..."
 
-docker exec postgres pg_dump -U {{ postgres_user }} {{ postgres_db }} | gzip > "${DUMP_FILE}"
+sudo -u postgres pg_dump "{{ postgres_db }}" | gzip > "${DUMP_FILE}"
 
 # Удалить бэкапы старше N дней
 find {{ backup_dir }} -name "*.sql.gz" -mtime +{{ backup_keep_days }} -delete

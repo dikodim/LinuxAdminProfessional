@@ -1,0 +1,21 @@
+global:
+  smtp_smarthost: "{{ grafana_smtp_host }}"
+  smtp_from: "{{ grafana_smtp_from_address }}"
+  smtp_auth_username: "{{ grafana_smtp_user }}"
+  smtp_auth_password: "{{ grafana_smtp_password }}"
+  smtp_require_tls: true
+
+route:
+  receiver: gmail
+  group_by:
+    - alertname
+    - job
+  group_wait: {{ alertmanager_group_wait }}
+  group_interval: {{ alertmanager_group_interval }}
+  repeat_interval: {{ alertmanager_repeat_interval }}
+
+receivers:
+  - name: gmail
+    email_configs:
+      - to: "{{ alertmanager_email_to }}"
+        send_resolved: true
